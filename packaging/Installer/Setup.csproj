@@ -4,7 +4,7 @@
     <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><AssemblyName>SimpleAimOverlay-Setup</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest><PublishSingleFile>true</PublishSingleFile><SelfContained>true</SelfContained>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
-    <Version>0.1.8</Version><Product>Simple Aim Overlay Friend Test Setup</Product>
+    <Version>0.1.9</Version><Product>Simple Aim Overlay Friend Test Setup</Product>
     <ApplicationIcon>..\..\Assets\simple-aim-overlay.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup><Compile Include="../../AppFonts.cs" Link="AppFonts.cs" /><EmbeddedResource Include="../../Assets/Fonts/Inter-Variable.ttf" LogicalName="SimpleAimOverlay.Assets.Fonts.Inter-Variable.ttf" /><Compile Include="../../Dialogs.cs" Link="Dialogs.cs" />
@@ -13,9 +13,3 @@
     <EmbeddedResource Include="..\..\Assets\simple-aim-overlay.ico" LogicalName="app.ico" />
   </ItemGroup>
 </Project>
-
-
-
-
-
-

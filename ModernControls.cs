@@ -267,15 +267,19 @@ internal static class RoundedDrawing
 
 internal sealed class NavigationButton : Button
 {
+    public NavigationButton() { SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true); }
     protected override bool ShowFocusCues => false;
+    protected override void OnGotFocus(EventArgs e) { base.OnGotFocus(e); Invalidate(); }
+    protected override void OnLostFocus(EventArgs e) { base.OnLostFocus(e); Invalidate(); }
     protected override void OnPaint(PaintEventArgs e) {
-        base.OnPaint(e);
-        using var pen=new Pen(BackColor,2);
-        e.Graphics.DrawRectangle(pen,1,1,Width-3,Height-3);
-        if(Focused) {using var accent=new Pen(DarkTheme.Accent,2);e.Graphics.DrawLine(accent,16,Height-3,Width-16,Height-3);}
+        // Never invoke native Button painting: it adds a default-button border on focus changes.
+        e.Graphics.Clear(BackColor);
+        int left=Padding.Left;
+        if(Image!=null){e.Graphics.DrawImage(Image,left,(Height-Image.Height)/2);left+=Image.Width+5;}
+        TextRenderer.DrawText(e.Graphics,Text,Font,new Rectangle(left,0,Width-left-Padding.Right,Height),ForeColor,TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis);
+        if(Focused && FindForm()?.ContainsFocus == true){using var accent=new Pen(DarkTheme.Accent,2);e.Graphics.DrawLine(accent,16,Height-3,Width-16,Height-3);}
     }
 }
-
 internal sealed class DarkListBox : UserControl
 {
     private readonly NativeList list = new();
@@ -295,7 +299,7 @@ internal sealed class DarkListBox : UserControl
         list.BorderStyle=BorderStyle.None;list.IntegralHeight=false;list.ScrollAlwaysVisible=true;
         list.DrawItem+=(_,e)=>DrawItem?.Invoke(this,e);
         list.SelectedIndexChanged+=(_,e)=>SelectedIndexChanged?.Invoke(this,e);
-        list.Changed=()=>thumb.Invalidate();
+        list.Changed=()=>thumb.Invalidate(); list.Wheel=ScrollWheel;
         viewport.SizeChanged+=(_,_)=>ResizeList();
         list.BackColor=DarkTheme.Card;list.ForeColor=DarkTheme.Text;
     }
@@ -307,9 +311,15 @@ internal sealed class DarkListBox : UserControl
     private int VisibleRows=>Math.Max(1,list.ClientSize.Height/Math.Max(1,list.ItemHeight));
     private int MaxTop=>Math.Max(0,list.Items.Count-VisibleRows);
     private void SetTop(int value){if(list.Items.Count>0)list.TopIndex=Math.Clamp(value,0,MaxTop);thumb.Invalidate();}
+    private int wheelRemainder;
+    private void ScrollWheel(int delta) {
+        wheelRemainder += delta;
+        int steps = wheelRemainder / 120; wheelRemainder %= 120;
+        if (steps != 0) SetTop(list.TopIndex - steps);
+    }
     private sealed class NativeList : ListBox {
-        public Action? Changed;
-        protected override void WndProc(ref Message m){base.WndProc(ref m);if(m.Msg is 0x115 or 0x20A or 0x100 or 0x180 or 0x181 or 0x184 or 0x197 or 0x186)Changed?.Invoke();}
+        public Action? Changed; public Action<int>? Wheel;
+        protected override void WndProc(ref Message m){if(m.Msg == 0x20A) { Wheel?.Invoke(unchecked((short)(m.WParam.ToInt64() >> 16))); m.Result=IntPtr.Zero; return; } base.WndProc(ref m);if(m.Msg is 0x115 or 0x20A or 0x100 or 0x180 or 0x181 or 0x184 or 0x197 or 0x186)Changed?.Invoke();}
     }
     private sealed class ScrollThumb : Control {
         readonly DarkListBox owner; bool dragging; int offset;
@@ -322,6 +332,6 @@ internal sealed class DarkListBox : UserControl
         protected override void OnMouseDown(MouseEventArgs e){base.OnMouseDown(e);if(e.Button!=MouseButtons.Left)return;offset=e.Y>=ThumbTop&&e.Y<ThumbTop+ThumbHeight?e.Y-ThumbTop:ThumbHeight/2;dragging=true;Capture=true;owner.list.Focus();MoveTo(e.Y);}
         protected override void OnMouseMove(MouseEventArgs e){base.OnMouseMove(e);if(dragging)MoveTo(e.Y);}
         protected override void OnMouseUp(MouseEventArgs e){base.OnMouseUp(e);dragging=false;Capture=false;Invalidate();}
-        protected override void OnMouseWheel(MouseEventArgs e){base.OnMouseWheel(e);owner.SetTop(owner.list.TopIndex-e.Delta/120*3);}
+        protected override void OnMouseWheel(MouseEventArgs e){base.OnMouseWheel(e);owner.ScrollWheel(e.Delta);}
     }
 }

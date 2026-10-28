@@ -1,3 +1,8 @@
+## 0.1.9
+
+- Replace the color dialog with a saturation/value canvas, hue strip, RGBA and HSV inputs, hex entry, and current/original previews.
+- Prevent native Windows focus borders from appearing on navigation tabs.
+- Scroll the gallery by one row per wheel notch, including over its scrollbar; accumulate fine wheel deltas.
 # Simple Aim Overlay 0.1.8
 
 The main repository now distributes the same self-signed UIAccess installer used for personal and friends installations.

@@ -21,32 +21,6 @@ internal static class DarkTheme
     public static readonly Color Preview = Color.FromArgb(9, 13, 19);
 }
 
-internal static class AppFonts
-{
-    private static PrivateFontCollection? collection;
-    private static FontFamily family = FontFamily.GenericSansSerif;
-    private static GCHandle pinnedFont;
-
-    public static void Initialize()
-    {
-        if (collection != null) return;
-        try
-        {
-            using var stream = typeof(AppFonts).Assembly.GetManifestResourceStream("SimpleAimOverlay.Assets.Fonts.Inter-Variable.ttf");
-            if (stream == null) return;
-            var bytes = new byte[stream.Length]; stream.ReadExactly(bytes);
-            pinnedFont = GCHandle.Alloc(bytes, GCHandleType.Pinned);
-            collection = new PrivateFontCollection();
-            collection.AddMemoryFont(pinnedFont.AddrOfPinnedObject(), bytes.Length);
-            if (collection.Families.Length > 0) family = collection.Families[0];
-        }
-        catch { }
-    }
-
-    public static Font Regular(float size) => new(family, size, FontStyle.Regular, GraphicsUnit.Point);
-    public static Font Semibold(float size) => new(family, size, FontStyle.Bold, GraphicsUnit.Point);
-}
-
 internal sealed class DarkSlider : Control
 {
     private int value;
@@ -174,9 +148,17 @@ internal sealed class DarkComboBox : ComboBox
     public DarkComboBox()
     {
         DrawMode = DrawMode.OwnerDrawFixed; DropDownStyle = ComboBoxStyle.DropDownList; FlatStyle = FlatStyle.Flat; ItemHeight = 28; IntegralHeight = false; BackColor = DarkTheme.Input; ForeColor = DarkTheme.Text;
+        SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true); DropDownHeight=440; MaxDropDownItems=15;
         DrawItem += DrawItemDark;
     }
-    private void DrawItemDark(object? sender, DrawItemEventArgs e)
+    protected override void OnPaint(PaintEventArgs e) {
+        e.Graphics.Clear(DarkTheme.Input);
+        TextRenderer.DrawText(e.Graphics, Text, Font, new Rectangle(10,0,Width-40,Height),DarkTheme.Text,TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis);
+        using var border=new Pen(Focused?DarkTheme.Accent:DarkTheme.Border);
+        e.Graphics.DrawRectangle(border,0,0,Width-1,Height-1);
+        using var arrow=new Pen(DarkTheme.Muted,1.5f);int x=Width-14,y=Height/2;
+        e.Graphics.DrawLines(arrow,new[]{new Point(x-4,y-2),new Point(x,y+2),new Point(x+4,y-2)});
+    }    private void DrawItemDark(object? sender, DrawItemEventArgs e)
     {
         if (e.Index < 0) { using var selectedBackground = new SolidBrush(DarkTheme.Input); e.Graphics.FillRectangle(selectedBackground, e.Bounds); TextRenderer.DrawText(e.Graphics, Text, Font, e.Bounds, DarkTheme.Text, TextFormatFlags.VerticalCenter | TextFormatFlags.Left); return; }
         bool selected = (e.State & DrawItemState.Selected) != 0; using var itemBackground = new SolidBrush(selected ? DarkTheme.SurfaceHover : DarkTheme.Input); e.Graphics.FillRectangle(itemBackground, e.Bounds);
@@ -198,7 +180,7 @@ internal sealed class DarkTabHost : UserControl
     public void AddPage(string title, string glyph, Control page)
     {
         int index = pages.Count; page.Dock = DockStyle.Fill; page.Visible = false; content.Controls.Add(page);
-        var button = new Button { Text = title, Image = GlyphPainter.Create(glyph, 18), ImageAlign = ContentAlignment.MiddleLeft, TextImageRelation = TextImageRelation.ImageBeforeText, TextAlign = ContentAlignment.MiddleLeft, AutoSize = false, Width = 126, Height = 42, Margin = new Padding(0, 0, 5, 0), Padding = new Padding(14, 0, 10, 0), FlatStyle = FlatStyle.Flat, BackColor = DarkTheme.Window, ForeColor = DarkTheme.Muted, Font = AppFonts.Semibold(9.5f), Cursor = Cursors.Hand };
+        var button = new NavigationButton { Text = title, Image = GlyphPainter.Create(glyph, 18), ImageAlign = ContentAlignment.MiddleLeft, TextImageRelation = TextImageRelation.ImageBeforeText, TextAlign = ContentAlignment.MiddleLeft, AutoSize = false, Width = 126, Height = 42, Margin = new Padding(0, 0, 5, 0), Padding = new Padding(14, 0, 10, 0), FlatStyle = FlatStyle.Flat, BackColor = DarkTheme.Window, ForeColor = DarkTheme.Muted, Font = AppFonts.Semibold(9.5f), Cursor = Cursors.Hand };
         button.FlatAppearance.BorderSize = 0; button.FlatAppearance.MouseOverBackColor = DarkTheme.SurfaceHover; button.Click += (_, _) => SelectPage(index); navigation.Controls.Add(button); pages.Add((button, page));
         if (selected < 0) SelectPage(0);
     }
@@ -282,3 +264,49 @@ internal static class RoundedDrawing
     public static void DrawRoundedRectangle(this Graphics g, Pen pen, float x, float y, float w, float h, int radius) => g.DrawPath(pen, Create(Rectangle.Round(new RectangleF(x, y, w, h)), radius));
     private static GraphicsPath Create(Rectangle r, int radius) { var p = new GraphicsPath(); float d = radius * 2; p.AddArc(r.Left, r.Top, d, d, 180, 90); p.AddArc(r.Right - d, r.Top, d, d, 270, 90); p.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90); p.AddArc(r.Left, r.Bottom - d, d, d, 90, 90); p.CloseFigure(); return p; }
 }
+
+internal sealed class NavigationButton : Button
+{
+    protected override bool ShowFocusCues => false;
+    protected override void OnPaint(PaintEventArgs e) {
+        base.OnPaint(e);
+        using var pen=new Pen(BackColor,2);
+        e.Graphics.DrawRectangle(pen,1,1,Width-3,Height-3);
+        if(Focused) {using var accent=new Pen(DarkTheme.Accent,2);e.Graphics.DrawLine(accent,16,Height-3,Width-16,Height-3);}
+    }
+}
+
+internal sealed class DarkListBox : ListBox
+{
+    [DllImport("user32.dll")] static extern bool ShowScrollBar(IntPtr hwnd,int bar,bool show);
+    protected override CreateParams CreateParams { get { var p=base.CreateParams; p.Style |= 0x02000000; return p; } }
+    protected override void OnResize(EventArgs e) { base.OnResize(e); if(thumb != null) { thumb.SetBounds(Math.Max(0,ClientSize.Width-12),0,12,ClientSize.Height); thumb.BringToFront(); } }
+    private bool hiding;
+    private readonly ScrollThumb thumb;
+    public DarkListBox() { thumb=new ScrollThumb(this){Dock=DockStyle.Right,Width=12};Controls.Add(thumb); }
+    protected override void WndProc(ref Message m) {
+        base.WndProc(ref m);
+        if(!hiding && IsHandleCreated && m.Msg is 0xF or 0x85 or 0x5 or 0x115 or 0x20A or 0x100 or 0x180 or 0x181) {
+            hiding=true;ShowScrollBar(Handle,1,false);hiding=false;thumb.Invalidate();
+        }
+    }
+    private sealed class ScrollThumb : Control {
+        readonly DarkListBox list; bool dragging;
+        public ScrollThumb(DarkListBox list) {this.list=list;BackColor=DarkTheme.Card;SetStyle(ControlStyles.UserPaint|ControlStyles.OptimizedDoubleBuffer|ControlStyles.AllPaintingInWmPaint,true);}
+        protected override void OnPaint(PaintEventArgs e) {
+            int visible=Math.Max(1,list.ClientSize.Height/Math.Max(1,list.ItemHeight));
+            if(list.Items.Count<=visible)return;
+            int height=Math.Max(28,Height*visible/list.Items.Count);
+            int top=(Height-height)*list.TopIndex/Math.Max(1,list.Items.Count-visible);
+            using var b=new SolidBrush(dragging?DarkTheme.Accent:DarkTheme.Border);
+            e.Graphics.FillRectangle(b,3,top,6,height);
+        }
+        void MoveTo(int y) {int visible=Math.Max(1,list.ClientSize.Height/Math.Max(1,list.ItemHeight));int max=Math.Max(0,list.Items.Count-visible);list.TopIndex=Math.Clamp((int)Math.Round((double)y/Math.Max(1,Height)*max),0,max);Invalidate();}
+        protected override void OnMouseDown(MouseEventArgs e){base.OnMouseDown(e);dragging=true;Capture=true;MoveTo(e.Y);}
+        protected override void OnMouseMove(MouseEventArgs e){base.OnMouseMove(e);if(dragging)MoveTo(e.Y);}
+        protected override void OnMouseUp(MouseEventArgs e){base.OnMouseUp(e);dragging=false;Capture=false;Invalidate();}
+    }
+}
+
+
+

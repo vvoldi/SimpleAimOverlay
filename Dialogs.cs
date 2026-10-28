@@ -9,7 +9,7 @@ internal class StyledDialog : Form
     public StyledDialog() {
         using var iconStream = GetType().Assembly.GetManifestResourceStream("SimpleAimOverlay.Assets.simple-aim-overlay.ico") ?? GetType().Assembly.GetManifestResourceStream("app.ico"); if (iconStream != null) Icon = new Icon(iconStream);
         BackColor = Color.FromArgb(15,18,23); ForeColor = Color.FromArgb(230,235,242);
-        Font = new Font("Segoe UI",10); StartPosition = FormStartPosition.CenterParent;
+        AppFonts.Initialize(); Font = AppFonts.Regular(10); StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog; MinimizeBox=false; MaximizeBox=false;
         ShowInTaskbar=false; Padding=new Padding(24);
     }
@@ -44,14 +44,14 @@ internal sealed class DarkColorPicker:StyledDialog
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     public bool FullOpen {get;set;}
     protected override void OnLoad(EventArgs e) {
-        base.OnLoad(e);Text="Choose color";ClientSize=new Size(430,330);
+        base.OnLoad(e);Text="Choose color";ClientSize=new Size(430,400);
         var preview=new Panel {Dock=DockStyle.Top,Height=48,BackColor=Color};
         var grid=new FlowLayoutPanel {Dock=DockStyle.Top,Height=70};
         foreach(var c in new[]{System.Drawing.Color.White,System.Drawing.Color.Lime,System.Drawing.Color.Cyan,System.Drawing.Color.Magenta,System.Drawing.Color.Red,System.Drawing.Color.Yellow,System.Drawing.Color.Black}) {
             var sw=new Button {BackColor=c,Width=45,Height=35,FlatStyle=FlatStyle.Flat};sw.Click+=(_,_)=>{Color=c;preview.BackColor=c;};grid.Controls.Add(sw);
         }
         var hex=new TextBox {Text=ColorTranslator.ToHtml(Color),Dock=DockStyle.Top,BackColor=BackColor,ForeColor=ForeColor,BorderStyle=BorderStyle.FixedSingle};
-        var sliders=new FlowLayoutPanel {Dock=DockStyle.Top,Height=110,FlowDirection=FlowDirection.TopDown};
+        var sliders=new FlowLayoutPanel {Dock=DockStyle.Top,Height=126,FlowDirection=FlowDirection.TopDown};
         var channels=new NumericUpDown[3];
         for(int i=0;i<3;i++) {int index=i;var row=new FlowLayoutPanel {Width=370,Height=32};row.Controls.Add(new Label {Text=new[]{"Red","Green","Blue"}[i],Width=100});var n=new NumericUpDown {Minimum=0,Maximum=255,Value=new[]{Color.R,Color.G,Color.B}[i],BackColor=BackColor,ForeColor=ForeColor,Width=200};channels[i]=n;row.Controls.Add(n);sliders.Controls.Add(row);n.ValueChanged+=(_,_)=>{if(channels.All(x=>x!=null)){Color=System.Drawing.Color.FromArgb((int)channels[0].Value,(int)channels[1].Value,(int)channels[2].Value);preview.BackColor=Color;hex.Text=ColorTranslator.ToHtml(Color);}};}
         var actions=new FlowLayoutPanel {Dock=DockStyle.Bottom,Height=40,FlowDirection=FlowDirection.RightToLeft};
@@ -60,5 +60,6 @@ internal sealed class DarkColorPicker:StyledDialog
         foreach(Button b in grid.Controls)b.Click+=(_,_)=>hex.Text=ColorTranslator.ToHtml(Color);
     }
 }
+
 
 

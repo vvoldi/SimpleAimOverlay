@@ -38,3 +38,9 @@ This project is licensed under the MIT License. See [LICENSE](LICENSE).
 ## Code signing policy
 
 See [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md). SignPath Foundation approval is pending; no public signed release is available yet.
+
+## Screenshots
+
+![Crosshair settings](docs/screenshots/crosshair.png)
+
+![Crosshair gallery](docs/screenshots/gallery.png)

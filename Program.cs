@@ -80,7 +80,7 @@ internal sealed class ControlWindow : Form
     private readonly OverlayWindow overlay = new();
     private readonly DarkTabHost tabs = new();
     private readonly DarkComboBox shape = new(), monitor = new(), hotkey = new(), holdKey = new();
-    private readonly ListBox images = new(), profiles = new();
+    private readonly DarkListBox images = new(), profiles = new();
     private readonly DarkCheckBox outline = new(), visible = new(), startup = new(), hideWhileHeld = new(), closeToTray = new();
     private readonly DarkSlider size = Slider(8, 180), imageScale = Slider(50, 800), thickness = Slider(1, 24), gap = Slider(0, 100), opacity = Slider(10, 100);
     private readonly DarkNumberBox offsetX = new(-2000, 2000), offsetY = new(-2000, 2000);
@@ -796,5 +796,6 @@ internal sealed class DarkColorTable : ProfessionalColorTable
     public override Color ImageMarginGradientEnd => DarkTheme.Surface;
     public override Color ToolStripBorder => DarkTheme.Border;
 }
+
 
 

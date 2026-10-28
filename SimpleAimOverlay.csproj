@@ -10,7 +10,7 @@
     <Product>Simple Aim Overlay</Product>
     <Description>A lightweight, configurable Windows crosshair overlay.</Description>
     <Authors>SimpleAimOverlay contributors</Authors>
-    <Version>0.1.4</Version>
+    <Version>0.1.5</Version>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
@@ -26,3 +26,4 @@
     <None Include="Assets\simple-aim-overlay.svg" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
+

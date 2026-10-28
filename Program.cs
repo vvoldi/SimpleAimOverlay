@@ -356,7 +356,7 @@ internal sealed class ControlWindow : Form
     private Screen SelectedScreen() => monitor.SelectedItem is MonitorItem mi ? mi.Screen : Screen.PrimaryScreen ?? Screen.AllScreens[0];
     private void PickColor(bool isOutline)
     {
-        using var d = new ColorDialog { Color = isOutline ? borderColor : aimColor, FullOpen = true };
+        using var d = new DarkColorPicker { Color = isOutline ? borderColor : aimColor, FullOpen = true };
         if (d.ShowDialog(this) != DialogResult.OK) return;
         if (isOutline) { borderColor = d.Color; outlineButton.BackColor = d.Color; } else { aimColor = d.Color; colorButton.BackColor = d.Color; images.Invalidate(); preview.Invalidate(); }
         Apply();
@@ -426,7 +426,7 @@ internal sealed class ControlWindow : Form
             if (startup.Checked) key?.SetValue("SimpleAimOverlay", $"\"{Application.ExecutablePath}\""); else key?.DeleteValue("SimpleAimOverlay", false);
             data.Current.StartWithWindows = startup.Checked; Store.Save(data);
         }
-        catch { MessageBox.Show(this, "Could not update the startup setting.", "Simple Aim Overlay", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+        catch { DarkMessage.Show(this, "Could not update the startup setting.", "Simple Aim Overlay", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
     }
     private void AddImage()
     {
@@ -439,14 +439,14 @@ internal sealed class ControlWindow : Form
             string dest = Path.Combine(folder, name + ext); int i = 2; while (File.Exists(dest)) dest = Path.Combine(folder, $"{name} ({i++}){ext}");
             File.Copy(d.FileName, dest); data.Images.Add(Path.GetFileName(dest)); data.OriginalColorImages.Remove(Path.GetFileName(dest)); data.Current.ImagePath = dest; data.Current.TintImage = true; PopulateImages(); images.SelectedItem = Path.GetFileName(dest); shape.SelectedItem = "Image"; imageScale.Enabled = true; Apply();
         }
-        catch (Exception ex) { MessageBox.Show(this, "Could not import the file: " + ex.Message, "Gallery", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+        catch (Exception ex) { DarkMessage.Show(this, "Could not import the file: " + ex.Message, "Gallery", MessageBoxButtons.OK, MessageBoxIcon.Error); }
     }
     private void RemoveImage()
     {
         if (images.SelectedItem is not string name) return;
         if (BundledCrosshairs.Contains(name, StringComparer.OrdinalIgnoreCase))
         {
-            MessageBox.Show(this, "Bundled crosshairs cannot be deleted. You can remove your own images.", "Gallery", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            DarkMessage.Show(this, "Bundled crosshairs cannot be deleted. You can remove your own images.", "Gallery", MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
         string p = Path.Combine(Store.Root, "crosshairs", name); try { if (File.Exists(p)) File.Delete(p); } catch { }
@@ -455,7 +455,7 @@ internal sealed class ControlWindow : Form
     private void CreateImage() => OpenPixelEditor(null, "New crosshair");
     private void EditImage()
     {
-        if (images.SelectedItem is not string name) { MessageBox.Show(this, "Select a crosshair first.", "Editor", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+        if (images.SelectedItem is not string name) { DarkMessage.Show(this, "Select a crosshair first.", "Editor", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
         OpenPixelEditor(Path.Combine(Store.Root, "crosshairs", name), Path.GetFileNameWithoutExtension(name));
     }
     private void OpenPixelEditor(string? path, string title)
@@ -645,10 +645,12 @@ internal static class AimRenderer
                 var source = ImageContentBounds(im);
                 float d = s.Size * (s.ImageScale / 100f) * scale;
                 float ratio = Math.Min(d / source.Width, d / source.Height);
-                int imageWidth = Math.Max(1, (int)(source.Width * ratio)), imageHeight = Math.Max(1, (int)(source.Height * ratio));
+                int contentWidth = Math.Max(1, (int)(source.Width * ratio)), contentHeight = Math.Max(1, (int)(source.Height * ratio));
+                int padding = Math.Max(2, (int)Math.Ceiling(s.Thickness * scale));
+                int imageWidth = contentWidth + padding * 2, imageHeight = contentHeight + padding * 2;
                 var target = new Rectangle((int)(cx - imageWidth / 2f), (int)(cy - imageHeight / 2f), imageWidth, imageHeight);
-                int effectiveThickness = 3 + (int)Math.Round((s.Thickness - 3) * scale);
-                int gapPixels = (int)Math.Round(s.Gap * scale);
+                int effectiveThickness = 3 + (int)Math.Round((s.Thickness - 3) * scale / 2);
+                int gapPixels = (int)Math.Round(s.Gap * scale * 2);
                 string key = $"{Path.GetFullPath(s.ImagePath)}|{File.GetLastWriteTimeUtc(s.ImagePath).Ticks}|{imageWidth}x{imageHeight}|{effectiveThickness}|{gapPixels}";
                 if (!ImageCache.TryGetValue(key, out var rendered))
                 {
@@ -658,7 +660,7 @@ internal static class AimRenderer
                         imageGraphics.Clear(Color.Transparent);
                         imageGraphics.InterpolationMode = InterpolationMode.NearestNeighbor;
                         imageGraphics.PixelOffsetMode = PixelOffsetMode.Half;
-                        imageGraphics.DrawImage(im, new Rectangle(0, 0, imageWidth, imageHeight), source, GraphicsUnit.Pixel);
+                        imageGraphics.DrawImage(im, new Rectangle(padding, padding, contentWidth, contentHeight), source, GraphicsUnit.Pixel);
                     }
                     AdjustImageAppearance(rendered, effectiveThickness, gapPixels);
                     if (ImageCache.Count >= 8)
@@ -794,3 +796,5 @@ internal sealed class DarkColorTable : ProfessionalColorTable
     public override Color ImageMarginGradientEnd => DarkTheme.Surface;
     public override Color ToolStripBorder => DarkTheme.Border;
 }
+
+

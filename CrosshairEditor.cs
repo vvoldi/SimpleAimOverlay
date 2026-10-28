@@ -96,7 +96,7 @@ internal sealed class PixelCrosshairEditor : Form
     }
     private void PickPenColor()
     {
-        using var dialog = new ColorDialog { Color = canvas.PenColor, FullOpen = true };
+        using var dialog = new DarkColorPicker { Color = canvas.PenColor, FullOpen = true };
         if (dialog.ShowDialog(this) == DialogResult.OK) { initialColor = dialog.Color; canvas.PenColor = Color.FromArgb((int)alpha.Value, dialog.Color.R, dialog.Color.G, dialog.Color.B); penColor.BackColor = dialog.Color; }
     }
     private void PushUndo(Bitmap snapshot)
@@ -185,3 +185,4 @@ internal sealed class PixelCrosshairEditor : Form
         }
     }
 }
+

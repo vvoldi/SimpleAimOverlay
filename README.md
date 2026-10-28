@@ -32,3 +32,7 @@ Settings and imported crosshair images are stored locally under `%LOCALAPPDATA%\
 ## License
 
 This project is licensed under the MIT License. See [LICENSE](LICENSE).
+
+## Code signing policy
+
+See [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md). SignPath Foundation approval is pending; no public signed release is available yet.

@@ -6,6 +6,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>SimpleAimOverlay</AssemblyName>
+    <AssemblyTitle>Simple Aim Overlay</AssemblyTitle>
+    <Product>Simple Aim Overlay</Product>
+    <Description>A lightweight, configurable Windows crosshair overlay.</Description>
+    <Authors>SimpleAimOverlay contributors</Authors>
+    <Version>0.1.0</Version>
     <ApplicationManifest Condition="'$(UseUiAccess)' != 'true'">app.manifest</ApplicationManifest>
     <ApplicationManifest Condition="'$(UseUiAccess)' == 'true'">app.uiaccess.manifest</ApplicationManifest>
   </PropertyGroup>

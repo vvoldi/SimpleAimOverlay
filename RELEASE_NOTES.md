@@ -1,3 +1,13 @@
+## 0.1.11
+
+- Remove bundled image presets and replace Gallery with Editor for personal drawings. Existing personal drawings are preserved; old bundled selections fall back to Cross.
+- Add continuous pencil strokes, line/rectangle/ellipse tools, fill, eyedropper, X/Y symmetry, a live preview, dark canvas scrollbars, and Ctrl+Z/Ctrl+Y. Resizing keeps artwork centered instead of clearing it.
+- Preserve custom drawing geometry instead of applying the old image thickness/gap transformations.
+- Add an independent minimize-to-tray preference for the title bar minimize button.
+- Suspend hold-to-hide and overlay z-order maintenance while the tray menu is open.
+- Ignore mouse-wheel changes on closed dropdowns.
+- Add opt-in game startup with PUBG selected by default. A background watcher starts at Windows sign-in, detects the selected EXE, and starts the overlay once per game session. Exact paths are matched when configured.
+- Reduce README to installation and everyday usage instructions.
 ## 0.1.10
 
 - Apply typed center offsets immediately; accept negative coordinates and normalize invalid/out-of-range edits on Enter or focus loss.

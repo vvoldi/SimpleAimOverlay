@@ -10,10 +10,11 @@ namespace SimpleAimOverlay;
 internal static class Program
 {
     [STAThread]
-    private static void Main()
+    private static void Main(string[] args)
     {
         ApplicationConfiguration.Initialize();
         AppFonts.Initialize();
+        if (args.Contains("--watch-game")) { GameLauncher.RunWatcher(); return; }
         using var mutex = new Mutex(true, "SimpleAimOverlay.SingleInstance", out bool first);
         if (!first) return;
         Application.Run(new ControlWindow());
@@ -56,6 +57,9 @@ internal sealed class StoreData
     public List<string> Images { get; set; } = [];
     public List<string> OriginalColorImages { get; set; } = [];
     public bool MinimizeToTrayOnClose { get; set; } = true;
+    public bool MinimizeToTray { get; set; }
+    public bool LaunchWithGame { get; set; }
+    public string GameExecutable { get; set; } = GameLauncher.FindPubg();
 }
 
 internal static class Store
@@ -93,7 +97,9 @@ internal sealed class ControlWindow : Form
     private readonly Label updateStatus = new() { ForeColor = DarkTheme.Muted, AutoSize = false, Text = "Checks once at launch; manual checks are always available." };
     private readonly System.Windows.Forms.Timer holdTimer = new() { Interval = 12 };
     private bool initializing = true;
-    private bool holdDown, desiredVisible = true, allowExit;
+    private bool holdDown, desiredVisible = true, allowExit, trayInteracting;
+    private readonly DarkCheckBox minimizeToTray = new(), launchWithGame = new();
+    private readonly TextBox gameExecutable = new() { BackColor = DarkTheme.Input, ForeColor = DarkTheme.Text, BorderStyle = BorderStyle.FixedSingle };
     private Color aimColor = Color.LimeGreen, borderColor = Color.FromArgb(16, 24, 32);
     private static readonly string[] Shapes = ["Cross", "Dot", "Circle", "Cross + Dot", "T-shape", "Diagonal", "Chevron", "3-ray", "Square", "Predator", "Image"];
     private static readonly string[] BundledCrosshairs = [
@@ -111,13 +117,20 @@ internal sealed class ControlWindow : Form
     {
         Text = "Simple Aim Overlay"; Icon = BrandIcon.Load(); MinimumSize = new Size(900, 660); Size = new Size(1120, 780);
         StartPosition = FormStartPosition.CenterScreen; Font = AppFonts.Regular(9.5f); BackColor = DarkTheme.Window;
+        data.Images.RemoveAll(x => BundledCrosshairs.Contains(x, StringComparer.OrdinalIgnoreCase));
+        foreach (var profile in data.Profiles) if (profile.Aim.Shape == "Image" && BundledCrosshairs.Contains(Path.GetFileName(profile.Aim.ImagePath), StringComparer.OrdinalIgnoreCase)) profile.Aim.Shape = "Cross";
+        if (data.Current.Shape == "Image" && BundledCrosshairs.Contains(Path.GetFileName(data.Current.ImagePath), StringComparer.OrdinalIgnoreCase)) data.Current.Shape = "Cross";
         BuildLayout(); LoadCurrent(); initializing = false; Apply(); PopulateProfiles(); PopulateImages();
         tray.Icon = BrandIcon.Load(); tray.Text = "Simple Aim Overlay"; tray.Visible = true;
         var menu = new ContextMenuStrip { BackColor = DarkTheme.Surface, ForeColor = DarkTheme.Text, Renderer = new ToolStripProfessionalRenderer(new DarkColorTable()) };
         menu.Items.Add("Open", GlyphPainter.Create("aim", 16, DarkTheme.Accent), (_, _) => RestoreWindow()); menu.Items.Add("Show / hide", GlyphPainter.Create("visibility", 16), (_, _) => ToggleVisible()); menu.Items.Add("Exit", GlyphPainter.Create("delete", 16), (_, _) => { allowExit = true; Close(); }); tray.ContextMenuStrip = menu;
+        tray.MouseDown += (_, e) => { if (e.Button == MouseButtons.Right) trayInteracting = true; };
+        menu.Opening += (_, _) => { trayInteracting = true; overlay.SuspendZOrder = true; };
+        menu.Closed += (_, _) => { trayInteracting = false; overlay.SuspendZOrder = false; };
+        Resize += (_, _) => { if (WindowState == FormWindowState.Minimized && data.MinimizeToTray) Hide(); };
         tray.DoubleClick += (_, _) => RestoreWindow();
         holdTimer.Tick += (_, _) => PollHoldKey();
-        Shown += async (_, _) => { overlay.Show(); BindHotkey(); holdTimer.Start(); await CheckUpdates(false); };
+        Shown += async (_, _) => { overlay.Show(); BindHotkey(); holdTimer.Start(); if (data.LaunchWithGame) GameLauncher.StartWatcher(); if (Environment.GetCommandLineArgs().Contains("--game")) Hide(); await CheckUpdates(false); };
         FormClosing += (_, e) =>
         {
             if (!allowExit && e.CloseReason == CloseReason.UserClosing && data.MinimizeToTrayOnClose)
@@ -150,7 +163,7 @@ internal sealed class ControlWindow : Form
         heading.Controls.Add(new Label { Text = "Build a clean, readable crosshair", ForeColor = DarkTheme.Muted, AutoSize = true, Location = new Point(2, 38), BackColor = DarkTheme.Window });
         root.Controls.Add(heading, 0, 0); root.SetColumnSpan(heading, 2);
         tabs.Dock = DockStyle.Fill;
-        tabs.AddPage("Crosshair", "aim", MakeCrosshairTab()); tabs.AddPage("Gallery", "library", MakeLibraryTab()); tabs.AddPage("Profiles", "profiles", MakeProfilesTab()); tabs.AddPage("Settings", "settings", MakeSettingsTab());
+        tabs.AddPage("Crosshair", "aim", MakeCrosshairTab()); tabs.AddPage("Editor", "edit", MakeLibraryTab()); tabs.AddPage("Profiles", "profiles", MakeProfilesTab()); tabs.AddPage("Settings", "settings", MakeSettingsTab());
         root.Controls.Add(tabs, 0, 1);
         var right = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Padding = new Padding(18, 10, 0, 0), BackColor = DarkTheme.Window };
         right.RowStyles.Add(new RowStyle(SizeType.Absolute, 32)); right.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); right.RowStyles.Add(new RowStyle(SizeType.Absolute, 112));
@@ -178,20 +191,19 @@ internal sealed class ControlWindow : Form
         AddRow(grid, "Center offset", offsets);
         monitor.DropDownStyle = ComboBoxStyle.DropDownList; AddRow(grid, "Display", monitor);
         var refresh = Button("Refresh displays", DarkTheme.SurfaceHover, DarkTheme.Text); refresh.Dock = DockStyle.Fill; refresh.Click += (_, _) => PopulateMonitors(); AddRow(grid, "", refresh);
-        shape.SelectedIndexChanged += (_, _) => { imageScale.Enabled = shape.SelectedItem?.ToString() == "Image"; Apply(); }; outline.CheckedChanged += (_, _) => Apply(); offsetX.ValueChanged += (_, _) => Apply(); offsetY.ValueChanged += (_, _) => Apply(); monitor.SelectedIndexChanged += (_, _) => Apply();
+        shape.SelectedIndexChanged += (_, _) => { imageScale.Enabled = shape.SelectedItem?.ToString() == "Image"; thickness.Enabled = gap.Enabled = !imageScale.Enabled; Apply(); }; outline.CheckedChanged += (_, _) => Apply(); offsetX.ValueChanged += (_, _) => Apply(); offsetY.ValueChanged += (_, _) => Apply(); monitor.SelectedIndexChanged += (_, _) => Apply();
         return p;
     }
     private Panel MakeLibraryTab()
     {
-        var p = Page("Gallery"); var layout = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 1, BackColor = DarkTheme.Surface };
+        var p = Page("Editor"); var layout = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 1, BackColor = DarkTheme.Surface };
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42)); layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48)); p.Controls.Add(layout);
-        layout.Controls.Add(new Label { Text = "Choose a crosshair, import an image, or edit pixels by hand.", ForeColor = DarkTheme.Muted, BackColor = DarkTheme.Surface, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
+        layout.Controls.Add(new Label { Text = "Your drawings. Create a crosshair or edit one you saved. Standard styles are in Crosshair.", ForeColor = DarkTheme.Muted, BackColor = DarkTheme.Surface, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
         images.Dock = DockStyle.Fill; images.IntegralHeight = false; images.BackColor = DarkTheme.Card; images.ForeColor = DarkTheme.Text; images.BorderStyle = BorderStyle.None; images.DrawMode = DrawMode.OwnerDrawFixed; images.ItemHeight = 72; images.DrawItem += DrawCrosshairItem; layout.Controls.Add(images, 0, 1);
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight };
         buttons.BackColor = DarkTheme.Surface;
         var create = Button("New", DarkTheme.Accent, DarkTheme.Window); create.Click += (_, _) => CreateImage(); buttons.Controls.Add(create);
         var edit = Button("Edit", DarkTheme.SurfaceHover, DarkTheme.Text); edit.Click += (_, _) => EditImage(); buttons.Controls.Add(edit);
-        var add = Button("Import", DarkTheme.SurfaceHover, DarkTheme.Text); add.Click += (_, _) => AddImage(); buttons.Controls.Add(add);
         var remove = Button("Delete", DarkTheme.SurfaceHover, DarkTheme.Text); remove.Click += (_, _) => RemoveImage(); buttons.Controls.Add(remove);
         layout.Controls.Add(buttons, 0, 2);
         images.SelectedIndexChanged += (_, _) =>
@@ -225,6 +237,18 @@ internal sealed class ControlWindow : Form
         holdKey.DropDownStyle = ComboBoxStyle.DropDownList; holdKey.Items.AddRange(["Right Mouse", "Left Mouse", "Middle Mouse", "Mouse X1", "Mouse X2", "Space", "Shift", "Ctrl", "Alt", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "Insert", "Pause"]); AddRow(grid, "Hold key", holdKey);
         startup.Text = "Launch when Windows starts"; startup.AutoSize = true; AddRow(grid, "Startup", startup);
         closeToTray.Text = "Minimize to tray when closed"; closeToTray.AutoSize = true; AddRow(grid, "Close button", closeToTray);
+        minimizeToTray.Text = "Minimize to tray with the − button"; AddRow(grid, "Minimize button", minimizeToTray);
+        minimizeToTray.CheckedChanged += (_, _) => { if (!initializing) { data.MinimizeToTray = minimizeToTray.Checked; Store.Save(data); } };
+        launchWithGame.Text = "Start overlay when the game starts"; AddRow(grid, "Game startup", launchWithGame);
+        var gameRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
+        gameRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); gameRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90));
+        gameExecutable.Dock = DockStyle.Fill; gameRow.Controls.Add(gameExecutable, 0, 0);
+        var browseGame = Button("Browse", DarkTheme.SurfaceHover, DarkTheme.Text); browseGame.Dock = DockStyle.Fill;
+        browseGame.Click += (_, _) => { using var dialog = new OpenFileDialog { Title = "Select game executable", Filter = "Executable|*.exe", CheckFileExists = true }; if (dialog.ShowDialog(this) == DialogResult.OK) { gameExecutable.Text = dialog.FileName; SaveGameStartup(); } };
+        gameRow.Controls.Add(browseGame, 1, 0); AddRow(grid, "Game EXE", gameRow);
+        gameExecutable.Leave += (_, _) => SaveGameStartup();
+        gameExecutable.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { SaveGameStartup(); e.SuppressKeyPress = true; } };
+        launchWithGame.CheckedChanged += (_, _) => SaveGameStartup();
         var checkUpdates = Button("Check for updates", DarkTheme.SurfaceHover, DarkTheme.Text); checkUpdates.Click += async (_, _) => await CheckUpdates(true); AddRow(grid, "Updates", checkUpdates); AddRow(grid, "Version " + AppUpdater.CurrentVersion.ToString(3), updateStatus);
         var text = new Label { Text = "UIAccess overlay. Fullscreen support depends on the game and its graphics mode.", Dock = DockStyle.Fill, ForeColor = DarkTheme.Muted, BackColor = DarkTheme.Surface, AutoSize = false };
         grid.Controls.Add(text, 0, grid.RowCount); grid.SetColumnSpan(text, 2); grid.RowCount++;
@@ -237,6 +261,14 @@ internal sealed class ControlWindow : Form
         return p;
     }
 
+    private void SaveGameStartup()
+    {
+        if (initializing) return;
+        string selected = gameExecutable.Text.Trim().Trim('"');
+        if (launchWithGame.Checked && !GameLauncher.IsValidTarget(selected)) { DarkMessage.Show(this, "Choose an existing game EXE, or enter its process filename (for example TslGame.exe).", "Game startup"); return; }
+        try { GameLauncher.Configure(launchWithGame.Checked); data.GameExecutable = selected; data.LaunchWithGame = launchWithGame.Checked; Store.Save(data); if (data.LaunchWithGame) GameLauncher.StartWatcher(); }
+        catch (Exception ex) { DarkMessage.Show(this, ex.Message, "Game startup"); }
+    }
     private Task CheckUpdates(bool manual) => updater.CheckAsync(this, manual, text => { if (!IsDisposed) updateStatus.Text = text; }, () => { allowExit = true; Close(); });
     private TableLayoutPanel Grid() => new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 2, RowCount = 0, Padding = new Padding(0, 2, 4, 2), BackColor = DarkTheme.Surface }.Also(g => { g.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150)); g.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); });
     private static void AddRow(TableLayoutPanel grid, string label, Control control)
@@ -275,7 +307,7 @@ internal sealed class ControlWindow : Form
         hotkey.SelectedItem = hotkey.Items.Contains(s.Hotkey) ? s.Hotkey : "F8";
         hideWhileHeld.Checked = s.HideWhileHeld; holdKey.SelectedItem = holdKey.Items.Contains(NormalizeHoldKey(s.HoldKey)) ? NormalizeHoldKey(s.HoldKey) : "Right Mouse";
         startup.Checked = s.StartWithWindows;
-        closeToTray.Checked = data.MinimizeToTrayOnClose;
+        closeToTray.Checked = data.MinimizeToTrayOnClose; minimizeToTray.Checked = data.MinimizeToTray; launchWithGame.Checked = data.LaunchWithGame; gameExecutable.Text = data.GameExecutable;
         PopulateMonitors();
     }
     private void PopulateMonitors()
@@ -294,16 +326,6 @@ internal sealed class ControlWindow : Form
     private void PopulateImages()
     {
         string folder = Path.Combine(Store.Root, "crosshairs"); Directory.CreateDirectory(folder);
-        foreach (string name in BundledCrosshairs)
-        {
-            string destination = Path.Combine(folder, name);
-            if (!File.Exists(destination))
-            {
-                using Stream? source = Assembly.GetExecutingAssembly().GetManifestResourceStream("SimpleAimOverlay.Assets.Crosshairs." + name);
-                if (source != null) using (var target = File.Create(destination)) source.CopyTo(target);
-            }
-            if (File.Exists(destination) && !data.Images.Contains(name, StringComparer.OrdinalIgnoreCase)) data.Images.Add(name);
-        }
         images.Items.Clear(); foreach (var x in data.Images) if (File.Exists(Path.Combine(folder, x))) images.Items.Add(x);
         Store.Save(data);
     }
@@ -403,6 +425,7 @@ internal sealed class ControlWindow : Form
     }
     private void PollHoldKey()
     {
+        if (trayInteracting || tray.ContextMenuStrip?.Visible == true) return;
         bool pressed = hideWhileHeld.Checked && desiredVisible && (GetAsyncKeyState(HoldKeyCode(holdKey.SelectedItem?.ToString() ?? "Right Mouse")) & 0x8000) != 0;
         if (pressed == holdDown) return;
         holdDown = pressed;
@@ -432,25 +455,12 @@ internal sealed class ControlWindow : Form
         }
         catch { DarkMessage.Show(this, "Could not update the startup setting.", "Simple Aim Overlay", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
     }
-    private void AddImage()
-    {
-        using var d = new OpenFileDialog { Title = "Import crosshair image", Filter = "Images|*.png;*.bmp;*.jpg;*.jpeg|All files|*.*" };
-        if (d.ShowDialog(this) != DialogResult.OK) return;
-        try
-        {
-            string folder = Path.Combine(Store.Root, "crosshairs"); Directory.CreateDirectory(folder);
-            string name = Path.GetFileNameWithoutExtension(d.FileName); string ext = Path.GetExtension(d.FileName).ToLowerInvariant();
-            string dest = Path.Combine(folder, name + ext); int i = 2; while (File.Exists(dest)) dest = Path.Combine(folder, $"{name} ({i++}){ext}");
-            File.Copy(d.FileName, dest); data.Images.Add(Path.GetFileName(dest)); data.OriginalColorImages.Remove(Path.GetFileName(dest)); data.Current.ImagePath = dest; data.Current.TintImage = true; PopulateImages(); images.SelectedItem = Path.GetFileName(dest); shape.SelectedItem = "Image"; imageScale.Enabled = true; Apply();
-        }
-        catch (Exception ex) { DarkMessage.Show(this, "Could not import the file: " + ex.Message, "Gallery", MessageBoxButtons.OK, MessageBoxIcon.Error); }
-    }
     private void RemoveImage()
     {
         if (images.SelectedItem is not string name) return;
         if (BundledCrosshairs.Contains(name, StringComparer.OrdinalIgnoreCase))
         {
-            DarkMessage.Show(this, "Bundled crosshairs cannot be deleted. You can remove your own images.", "Gallery", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            DarkMessage.Show(this, "Bundled crosshairs cannot be deleted. You can remove your own images.", "Editor", MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
         string p = Path.Combine(Store.Root, "crosshairs", name); try { if (File.Exists(p)) File.Delete(p); } catch { }
@@ -464,10 +474,11 @@ internal sealed class ControlWindow : Form
     }
     private void OpenPixelEditor(string? path, string title)
     {
-        using var editor = new PixelCrosshairEditor(path, aimColor);
+        using var editor = new PixelCrosshairEditor(path, aimColor) { TintForOverlay = path == null || !data.OriginalColorImages.Contains(Path.GetFileName(path), StringComparer.OrdinalIgnoreCase) };
         if (editor.ShowDialog(this) != DialogResult.OK || editor.ResultImage == null) return;
         string folder = Path.Combine(Store.Root, "crosshairs"); Directory.CreateDirectory(folder);
-        string safe = string.Concat(title.Select(ch => Path.GetInvalidFileNameChars().Contains(ch) ? '-' : ch));
+        string? chosenName = DarkPrompt.Show(this, "Save crosshair", "Name", title); if (string.IsNullOrWhiteSpace(chosenName)) { editor.ResultImage.Dispose(); return; }
+        string safe = string.Concat(chosenName.Select(ch => Path.GetInvalidFileNameChars().Contains(ch) ? '-' : ch));
         string name = $"{safe}-edit-{DateTime.Now:yyyyMMdd-HHmmss}.png";
         string destination = Path.Combine(folder, name);
         using (editor.ResultImage) editor.ResultImage.Save(destination, ImageFormat.Png);
@@ -509,6 +520,7 @@ internal sealed class OverlayWindow : Form
     private static readonly IntPtr HwndTopmost = new(-1);
     private AimSettings settings = new(); private Color color = Color.LimeGreen, outline = Color.Black; private Screen screen = Screen.PrimaryScreen ?? Screen.AllScreens[0];
     private readonly System.Windows.Forms.Timer topmostTimer = new() { Interval = 750 };
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)] public bool SuspendZOrder { get; set; }
     protected override bool ShowWithoutActivation => true;
     protected override CreateParams CreateParams { get { var p = base.CreateParams; p.ExStyle |= WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_LAYERED | WS_EX_NOACTIVATE; return p; } }
     public OverlayWindow()
@@ -548,7 +560,7 @@ internal sealed class OverlayWindow : Form
     protected override void OnShown(EventArgs e) { base.OnShown(e); MaintainOverlay(); RenderLayered(); topmostTimer.Start(); }
     private void MaintainOverlay()
     {
-        if (!IsHandleCreated || !Visible) return;
+        if (!IsHandleCreated || !Visible || SuspendZOrder) return;
         var current = Screen.AllScreens.FirstOrDefault(x => x.DeviceName == screen.DeviceName) ?? Screen.PrimaryScreen ?? screen;
         bool resized = screen.Bounds != current.Bounds;
         screen = current;
@@ -646,15 +658,15 @@ internal static class AimRenderer
             try
             {
                 using var im = Image.FromFile(s.ImagePath);
-                var source = ImageContentBounds(im);
+                var source = new Rectangle(0, 0, im.Width, im.Height);
                 float d = s.Size * (s.ImageScale / 100f) * scale;
                 float ratio = Math.Min(d / source.Width, d / source.Height);
                 int contentWidth = Math.Max(1, (int)(source.Width * ratio)), contentHeight = Math.Max(1, (int)(source.Height * ratio));
-                int padding = Math.Max(2, (int)Math.Ceiling(s.Thickness * scale));
+                int padding = 2;
                 int imageWidth = contentWidth + padding * 2, imageHeight = contentHeight + padding * 2;
                 var target = new Rectangle((int)(cx - imageWidth / 2f), (int)(cy - imageHeight / 2f), imageWidth, imageHeight);
-                int effectiveThickness = 3 + (int)Math.Round((s.Thickness - 3) * scale / 2);
-                int gapPixels = (int)Math.Round(s.Gap * scale * 2);
+                int effectiveThickness = 3;
+                int gapPixels = 0;
                 string key = $"{Path.GetFullPath(s.ImagePath)}|{File.GetLastWriteTimeUtc(s.ImagePath).Ticks}|{imageWidth}x{imageHeight}|{effectiveThickness}|{gapPixels}";
                 if (!ImageCache.TryGetValue(key, out var rendered))
                 {
@@ -666,7 +678,7 @@ internal static class AimRenderer
                         imageGraphics.PixelOffsetMode = PixelOffsetMode.Half;
                         imageGraphics.DrawImage(im, new Rectangle(padding, padding, contentWidth, contentHeight), source, GraphicsUnit.Pixel);
                     }
-                    AdjustImageAppearance(rendered, effectiveThickness, gapPixels);
+                    // Preserve the drawing exactly; edit stroke width and gaps in the editor.
                     if (ImageCache.Count >= 8)
                     {
                         foreach (var cached in ImageCache.Values) cached.Dispose();
@@ -681,7 +693,7 @@ internal static class AimRenderer
                 {
                     if (s.Outline)
                     {
-                        int outlineWidth = Math.Clamp((int)Math.Round(s.Thickness * .55f * scale), 1, 5);
+                        int outlineWidth = Math.Max(1, (int)Math.Round(scale));
                         using var clip = new Region(new Rectangle(target.X - outlineWidth, target.Y - outlineWidth, target.Width + outlineWidth * 2, target.Height + outlineWidth * 2));
                         if (gapPixels > 0) clip.Exclude(new RectangleF(cx - gapPixels / 2f, cy - gapPixels / 2f, gapPixels, gapPixels));
                         g.SetClip(clip, CombineMode.Intersect);

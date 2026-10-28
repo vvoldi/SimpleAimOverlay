@@ -7,7 +7,7 @@ namespace SimpleAimOverlay;
 
 internal sealed class PixelCrosshairEditor : Form
 {
-    private readonly PixelCanvas canvas;
+    private readonly DrawingCanvas canvas;
     private readonly Stack<Bitmap> undo = new(), redo = new();
     private readonly DarkSlider zoom = new(3, 20) { Value = 10, Width = 150, Height = 34 };
     private readonly DarkNumberBox brushSize = new(1, 16, 1) { Width = 72, Height = 30 };
@@ -15,24 +15,30 @@ internal sealed class PixelCrosshairEditor : Form
     private readonly Label zoomValue = new() { AutoSize = true, Text = "10×", ForeColor = DarkTheme.Muted, Padding = new Padding(2, 8, 8, 0) };
     private readonly Label pixelValue = new() { AutoSize = true, Text = "RGBA —", ForeColor = DarkTheme.Muted, Padding = new Padding(8, 8, 4, 0) };
     private readonly Button penColor = new() { Text = "Pen color", AutoSize = true, Height = 36, FlatStyle = FlatStyle.Flat, Padding = new Padding(10, 3, 10, 3), Cursor = Cursors.Hand };
-    private readonly DarkCheckBox eraser = new() { Text = "Eraser", AutoSize = true, ForeColor = DarkTheme.Text, BackColor = DarkTheme.Surface, Padding = new Padding(8, 9, 8, 0) };
-    private readonly DarkCheckBox tintToAim = new() { Text = "Use crosshair color", AutoSize = true, Checked = true, ForeColor = DarkTheme.Text, BackColor = DarkTheme.Surface, Padding = new Padding(6, 9, 6, 0) };
+    private readonly DarkCheckBox eraser = new() { Text = "Eraser", AutoSize = false, Width = 100, Height = 36, ForeColor = DarkTheme.Text, BackColor = DarkTheme.Surface, Padding = new Padding(8, 9, 8, 0) };
+    private readonly DarkCheckBox tintToAim = new() { Text = "Use crosshair color", AutoSize = false, Width = 180, Height = 36, Checked = true, ForeColor = DarkTheme.Text, BackColor = DarkTheme.Surface, Padding = new Padding(6, 9, 6, 0) };
     private readonly bool resizableCanvas;
+    private readonly Panel livePreview = new() { BackColor = DarkTheme.Preview, Dock = DockStyle.Fill };
     private readonly DarkComboBox dimensions = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 96 };
     private Color initialColor;
+    private bool syncingDimensions;
 
     public Bitmap? ResultImage { get; private set; }
-    public bool TintForOverlay => tintToAim.Checked;
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)] public bool TintForOverlay { get => tintToAim.Checked; set => tintToAim.Checked = value; }
 
     public PixelCrosshairEditor(string? imagePath, Color color)
     {
         Text = imagePath == null ? "New crosshair" : "Crosshair editor"; Icon = BrandIcon.Load();
         StartPosition = FormStartPosition.CenterParent; MinimumSize = new Size(880, 640); Size = new Size(1180, 820);
         FormBorderStyle = FormBorderStyle.Sizable; BackColor = DarkTheme.Window; ForeColor = DarkTheme.Text; Font = AppFonts.Regular(9.5f);
-        initialColor = color; resizableCanvas = imagePath == null;
-        if (imagePath == null) canvas = new PixelCanvas(new Bitmap(64, 64, PixelFormat.Format32bppArgb));
-        else { using var source = Image.FromFile(imagePath); canvas = new PixelCanvas(new Bitmap(source)); }
+        initialColor = color; resizableCanvas = true; KeyPreview = true;
+        if (imagePath == null) canvas = new DrawingCanvas(new Bitmap(64, 64, PixelFormat.Format32bppArgb));
+        else { using var source = Image.FromFile(imagePath); canvas = new DrawingCanvas(new Bitmap(source)); }
+        canvas.PenColor = color; alpha.Value = color.A;
         canvas.StrokeStarted += PushUndo;
+        canvas.Changed += () => livePreview.Invalidate();
+        canvas.ColorPicked += c => { initialColor = c; alpha.Value = c.A; canvas.PenColor = c; penColor.BackColor = c; };
+        KeyDown += (_, e) => { if (e.Control && e.KeyCode == Keys.Z) { Undo(); e.SuppressKeyPress = true; } if (e.Control && e.KeyCode == Keys.Y) { Redo(); e.SuppressKeyPress = true; } };
         canvas.PointerColorChanged += c => pixelValue.Text = $"RGBA {c.R}, {c.G}, {c.B}, {c.A}";
         BuildEditorLayout();
         ApplyDarkCaption();
@@ -58,7 +64,7 @@ internal sealed class PixelCrosshairEditor : Form
     private void BuildEditorLayout()
     {
         var root = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1, Padding = new Padding(12), BackColor = DarkTheme.Window };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 88)); root.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); Controls.Add(root);
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 144)); root.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); Controls.Add(root);
         var toolbar = new FlowLayoutPanel { Dock = DockStyle.Fill, BackColor = DarkTheme.Surface, WrapContents = true, Padding = new Padding(4), AutoScroll = true };
         var undoButton = MakeButton("Undo", false, "undo"); undoButton.Click += (_, _) => Undo(); toolbar.Controls.Add(undoButton);
         var redoButton = MakeButton("Redo", false, "redo"); redoButton.Click += (_, _) => Redo(); toolbar.Controls.Add(redoButton);
@@ -76,16 +82,26 @@ internal sealed class PixelCrosshairEditor : Form
         toolbar.Controls.Add(tintToAim);
         if (resizableCanvas)
         {
-            dimensions.Items.AddRange(["16 × 16", "32 × 32", "64 × 64", "128 × 128", "256 × 256"]); dimensions.SelectedIndex = 2;
-            dimensions.SelectedIndexChanged += (_, _) => { if (dimensions.SelectedItem is string v) { int n = int.Parse(v.Split(' ')[0]); ResizeCanvas(n); } };
+            dimensions.Items.AddRange(["16 × 16", "32 × 32", "64 × 64", "128 × 128", "256 × 256"]); dimensions.SelectedIndex = Array.IndexOf(new[] {16,32,64,128,256}, canvas.Image.Width);
+            dimensions.SelectedIndexChanged += (_, _) => { if (!syncingDimensions && dimensions.SelectedItem is string v) { int n = int.Parse(v.Split(' ')[0]); ResizeCanvas(n); } };
             toolbar.Controls.Add(new Label { Text = "Canvas", AutoSize = true, ForeColor = DarkTheme.Muted, Padding = new Padding(6, 9, 0, 0), BackColor = DarkTheme.Surface }); toolbar.Controls.Add(dimensions);
         }
+        var tools = new DarkComboBox { Width = 130 }; tools.Items.AddRange(["Pencil", "Line", "Rectangle", "Ellipse", "Fill", "Eyedropper"]); tools.SelectedIndex = 0;
+        tools.SelectedIndexChanged += (_, _) => canvas.Tool = tools.SelectedItem?.ToString() ?? "Pencil"; toolbar.Controls.Add(tools);
+        var mirrorX = new DarkCheckBox { Text = "Mirror X", Width = 105 }; mirrorX.CheckedChanged += (_, _) => canvas.MirrorX = mirrorX.Checked; toolbar.Controls.Add(mirrorX);
+        var mirrorY = new DarkCheckBox { Text = "Mirror Y", Width = 105 }; mirrorY.CheckedChanged += (_, _) => canvas.MirrorY = mirrorY.Checked; toolbar.Controls.Add(mirrorY);
         toolbar.Controls.Add(pixelValue);
-        var save = MakeButton("Save to gallery", true, "save"); save.Click += (_, _) => { ResultImage = new Bitmap(canvas.Image); DialogResult = DialogResult.OK; Close(); }; toolbar.Controls.Add(save);
+        var save = MakeButton("Save drawing", true, "save"); save.Click += (_, _) => { ResultImage = new Bitmap(canvas.Image); DialogResult = DialogResult.OK; Close(); }; toolbar.Controls.Add(save);
         var cancel = MakeButton("Cancel", false); cancel.Click += (_, _) => { DialogResult = DialogResult.Cancel; Close(); }; toolbar.Controls.Add(cancel);
         root.Controls.Add(toolbar, 0, 0);
-        var scroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = DarkTheme.Card, Padding = new Padding(14) };
-        canvas.PixelSize = zoom.Value; scroll.Controls.Add(canvas); root.Controls.Add(scroll, 0, 1);
+        var scroll = new EditorViewport(canvas) { Dock = DockStyle.Fill };
+                canvas.PixelSize = zoom.Value;
+        var workspace = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 }; workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220));
+        workspace.Controls.Add(scroll, 0, 0);
+        var sidebar = new Panel { Dock = DockStyle.Fill, Padding = new Padding(12), BackColor = DarkTheme.Window };
+        sidebar.Controls.Add(livePreview); sidebar.Controls.Add(new Label { Text = "PREVIEW · 1× / 4×\nRight mouse: erase\nCtrl+Z / Ctrl+Y: undo / redo", Dock = DockStyle.Top, Height = 76, ForeColor = DarkTheme.Muted });
+        livePreview.Paint += (_, e) => { e.Graphics.InterpolationMode = InterpolationMode.NearestNeighbor; e.Graphics.PixelOffsetMode = PixelOffsetMode.Half; int w = canvas.Image.Width, h = canvas.Image.Height; e.Graphics.DrawImage(canvas.Image, (livePreview.Width-w)/2, 24, w, h); float scale = Math.Min(4, Math.Min((livePreview.Width-16f)/w, (livePreview.Height-h-60f)/h)); if (scale > 0) e.Graphics.DrawImage(canvas.Image, (livePreview.Width-w*scale)/2, h+56, w*scale, h*scale); };
+        workspace.Controls.Add(sidebar, 1, 0); root.Controls.Add(workspace, 0, 1);
     }
 
     private static Button MakeButton(string text, bool primary, string? glyph = null)
@@ -97,11 +113,12 @@ internal sealed class PixelCrosshairEditor : Form
     private void PickPenColor()
     {
         using var dialog = new DarkColorPicker { Color = canvas.PenColor, FullOpen = true };
-        if (dialog.ShowDialog(this) == DialogResult.OK) { initialColor = dialog.Color; canvas.PenColor = Color.FromArgb((int)alpha.Value, dialog.Color.R, dialog.Color.G, dialog.Color.B); penColor.BackColor = dialog.Color; }
+        if (dialog.ShowDialog(this) == DialogResult.OK) { alpha.Value = dialog.Color.A; initialColor = dialog.Color; canvas.PenColor = Color.FromArgb((int)alpha.Value, dialog.Color.R, dialog.Color.G, dialog.Color.B); penColor.BackColor = dialog.Color; }
     }
     private void PushUndo(Bitmap snapshot)
     {
         undo.Push(snapshot);
+        if (undo.Count > 50) { var keep = undo.Take(50).ToArray(); foreach (var old in undo.Skip(50)) old.Dispose(); undo.Clear(); for (int i=keep.Length-1;i>=0;i--) undo.Push(keep[i]); }
         foreach (var b in redo) b.Dispose(); redo.Clear();
     }
     private void Undo()
@@ -112,77 +129,14 @@ internal sealed class PixelCrosshairEditor : Form
     {
         if (redo.Count == 0) return; undo.Push(new Bitmap(canvas.Image)); ReplaceImage(redo.Pop());
     }
-    private void ReplaceImage(Bitmap image) { var old = canvas.Image; canvas.Image = image; old.Dispose(); }
+    private void ReplaceImage(Bitmap image) { var old = canvas.Image; canvas.Image = image; old.Dispose(); syncingDimensions = true; dimensions.SelectedIndex = Array.IndexOf(new[] {16,32,64,128,256}, image.Width); syncingDimensions = false; }
     private void ClearCanvas()
     {
-        PushUndo(new Bitmap(canvas.Image)); using var g = Graphics.FromImage(canvas.Image); g.Clear(Color.Transparent); canvas.Invalidate();
+        PushUndo(new Bitmap(canvas.Image)); using var g = Graphics.FromImage(canvas.Image); g.Clear(Color.Transparent); canvas.Invalidate(); livePreview.Invalidate();
     }
     private void ResizeCanvas(int n)
     {
-        PushUndo(new Bitmap(canvas.Image)); var old = canvas.Image; canvas.Image = new Bitmap(n, n, PixelFormat.Format32bppArgb); old.Dispose();
+        PushUndo(new Bitmap(canvas.Image)); var old = canvas.Image; var resized = new Bitmap(n, n, PixelFormat.Format32bppArgb); using (var g = Graphics.FromImage(resized)) { g.CompositingMode = CompositingMode.SourceCopy; g.DrawImageUnscaled(old, (n-old.Width)/2, (n-old.Height)/2); } canvas.Image = resized; old.Dispose();
     }
 
-    private sealed class PixelCanvas : Control
-    {
-        private Bitmap image;
-        private bool drawing, eraseStroke;
-        [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-        public Bitmap Image { get => image; set { image = value; UpdateSize(); Invalidate(); } }
-        private int pixelSize = 10;
-        [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-        public int PixelSize { get => pixelSize; set { pixelSize = Math.Clamp(value, 2, 24); UpdateSize(); Invalidate(); } }
-        [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-        public int BrushSize { get; set; } = 1;
-        [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-        public Color PenColor { get; set; } = Color.LimeGreen;
-        [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-        public bool Eraser { get; set; }
-        public event Action<Bitmap>? StrokeStarted;
-        public event Action<Color>? PointerColorChanged;
-        public PixelCanvas(Bitmap bitmap)
-        {
-            image = bitmap; BackColor = DarkTheme.Card; DoubleBuffered = true; Cursor = Cursors.Cross;
-            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true); UpdateSize();
-        }
-        private void UpdateSize() { Size = new Size(Math.Max(1, image.Width * pixelSize + 1), Math.Max(1, image.Height * pixelSize + 1)); }
-        protected override void OnPaint(PaintEventArgs e)
-        {
-            e.Graphics.Clear(DarkTheme.Card); e.Graphics.InterpolationMode = InterpolationMode.NearestNeighbor; e.Graphics.PixelOffsetMode = PixelOffsetMode.Half;
-            using var first = new SolidBrush(DarkTheme.Input); using var second = new SolidBrush(DarkTheme.Surface);
-            for (int y = 0; y < image.Height; y++) for (int x = 0; x < image.Width; x++)
-            {
-                e.Graphics.FillRectangle(((x + y) & 1) == 0 ? first : second, x * PixelSize, y * PixelSize, PixelSize, PixelSize);
-            }
-            e.Graphics.DrawImage(image, new Rectangle(0, 0, image.Width * PixelSize, image.Height * PixelSize));
-            if (PixelSize >= 5)
-            {
-                using var grid = new Pen(Color.FromArgb(50, 190, 200, 215));
-                for (int x = 0; x <= image.Width; x++) e.Graphics.DrawLine(grid, x * PixelSize, 0, x * PixelSize, image.Height * PixelSize);
-                for (int y = 0; y <= image.Height; y++) e.Graphics.DrawLine(grid, 0, y * PixelSize, image.Width * PixelSize, y * PixelSize);
-            }
-        }
-        protected override void OnMouseDown(MouseEventArgs e)
-        {
-            base.OnMouseDown(e); if (e.Button is not (MouseButtons.Left or MouseButtons.Right)) return;
-            drawing = true; eraseStroke = e.Button == MouseButtons.Right || Eraser; Capture = true;
-            StrokeStarted?.Invoke(new Bitmap(image)); PaintAt(e.Location);
-        }
-        protected override void OnMouseMove(MouseEventArgs e)
-        {
-            base.OnMouseMove(e); if (e.X >= 0 && e.Y >= 0 && e.X < image.Width * PixelSize && e.Y < image.Height * PixelSize)
-            {
-                int x = e.X / PixelSize, y = e.Y / PixelSize; PointerColorChanged?.Invoke(image.GetPixel(x, y));
-                if (drawing && (e.Button & (MouseButtons.Left | MouseButtons.Right)) != 0) PaintAt(e.Location);
-            }
-        }
-        protected override void OnMouseUp(MouseEventArgs e) { base.OnMouseUp(e); drawing = false; Capture = false; }
-        private void PaintAt(Point p)
-        {
-            int cx = p.X / PixelSize, cy = p.Y / PixelSize, start = (BrushSize - 1) / 2;
-            for (int y = cy - start; y < cy - start + BrushSize; y++) for (int x = cx - start; x < cx - start + BrushSize; x++)
-                if (x >= 0 && y >= 0 && x < image.Width && y < image.Height) image.SetPixel(x, y, eraseStroke ? Color.Transparent : PenColor);
-            Invalidate(new Rectangle((cx - BrushSize) * PixelSize, (cy - BrushSize) * PixelSize, (BrushSize * 2 + 1) * PixelSize, (BrushSize * 2 + 1) * PixelSize));
-        }
-    }
 }
-

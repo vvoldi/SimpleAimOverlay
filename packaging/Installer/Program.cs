@@ -32,7 +32,7 @@ internal static class Program
     static void Install(int? parent)
     {
         var result = parent.HasValue ? DialogResult.Yes : DarkMessage.Show(
-            "This is a self-signed Simple Aim Overlay 0.1.10 build.\n\n" +
+            "This is a self-signed Simple Aim Overlay 0.1.11 build.\n\n" +
             "Setup will add the SimpleAimOverlay test certificate to this PC's trusted certificate stores " +
             "and install the app in Program Files (required for UIAccess).\n\n" +
             "Only continue if you trust the package source. This build does not include a DXGI hook.\n\n" +
@@ -44,6 +44,7 @@ internal static class Program
             try { using var app = Process.GetProcessById(parent.Value); if (app.ProcessName == "SimpleAimOverlay" && !app.WaitForExit(30000)) throw new InvalidOperationException("Close Simple Aim Overlay and run setup again."); }
             catch (ArgumentException) { /* The app already exited. */ }
         }
+        StopGameWatcher();
         Directory.CreateDirectory(InstallDir);
         var certBytes = ReadResource("test.cer");
         var cert = X509CertificateLoader.LoadCertificate(certBytes);
@@ -60,13 +61,14 @@ internal static class Program
         using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\SimpleAimOverlayTest"))
         {
             key.SetValue("DisplayName", Product + " (Self-signed)");
-            key.SetValue("DisplayVersion", "0.1.10");
+            key.SetValue("DisplayVersion", "0.1.11");
             key.SetValue("Publisher", "SimpleAimOverlay contributors (local test certificate)");
             key.SetValue("InstallLocation", InstallDir);
             key.SetValue("DisplayIcon", Path.Combine(InstallDir, AppExe));
             key.SetValue("UninstallString", "\"" + uninstallerPath + "\" /uninstall");
             key.SetValue("NoModify", 1, RegistryValueKind.DWord); key.SetValue("NoRepair", 1, RegistryValueKind.DWord);
         }
+        RestoreGameWatcher();
         if (parent.HasValue || DarkMessage.Show("Installation is complete. Launch Simple Aim Overlay now?", Product, MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
             Process.Start(new ProcessStartInfo(Path.Combine(InstallDir, AppExe)) { UseShellExecute = true });
     }
@@ -94,9 +96,21 @@ internal static class Program
         shortcut.Save(); Marshal.FinalReleaseComObject(shortcut); Marshal.FinalReleaseComObject(shell);
     }
 
+    static void StopGameWatcher() {
+        string suffix = System.Security.Principal.WindowsIdentity.GetCurrent().User?.Value ?? Environment.UserName;
+        try { using var signal = EventWaitHandle.OpenExisting(@"Local\SimpleAimOverlay.GameWatcher.Stop." + suffix); signal.Set(); } catch (WaitHandleCannotBeOpenedException) { }
+        try { using var mutex = Mutex.OpenExisting(@"Local\SimpleAimOverlay.GameWatcher." + suffix); bool acquired = false; try { acquired = mutex.WaitOne(5000); } catch (AbandonedMutexException) { acquired = true; } finally { if (acquired) mutex.ReleaseMutex(); } if (!acquired) throw new InvalidOperationException("The game watcher is still closing. Try setup again."); } catch (WaitHandleCannotBeOpenedException) { }
+    }
+    static void RestoreGameWatcher() {
+        using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
+        if (key?.GetValue("SimpleAimOverlayGameWatcher") != null)
+            Process.Start(new ProcessStartInfo(Path.Combine(InstallDir, AppExe)) { UseShellExecute = true, Arguments = "--watch-game", WindowStyle = ProcessWindowStyle.Hidden });
+    }
     static void Uninstall()
     {
         if (DarkMessage.Show("Remove Simple Aim Overlay Test and its test certificate from this PC's trusted stores?", Product, MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+        StopGameWatcher();
+        using (var run = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true)) { run?.DeleteValue("SimpleAimOverlayGameWatcher", false); run?.DeleteValue("SimpleAimOverlay", false); }
         try { File.Delete(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms), Product + ".lnk")); } catch { }
         foreach (var storeName in new[] { StoreName.Root, StoreName.TrustedPublisher })
         {

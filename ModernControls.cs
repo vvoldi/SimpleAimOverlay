@@ -151,6 +151,11 @@ internal sealed class DarkCheckBox : CheckBox
 
 internal sealed class DarkComboBox : ComboBox
 {
+    protected override void WndProc(ref Message m)
+    {
+        if (m.Msg == 0x020A && !DroppedDown) { m.Result = IntPtr.Zero; return; }
+        base.WndProc(ref m);
+    }
     public DarkComboBox()
     {
         DrawMode = DrawMode.OwnerDrawFixed; DropDownStyle = ComboBoxStyle.DropDownList; FlatStyle = FlatStyle.Flat; ItemHeight = 28; IntegralHeight = false; BackColor = DarkTheme.Input; ForeColor = DarkTheme.Text;
@@ -197,7 +202,7 @@ internal sealed class DarkTabHost : UserControl
         {
             bool active = i == selected; pages[i].Page.Visible = active; pages[i].Page.BringToFront();
             pages[i].Button.BackColor = active ? DarkTheme.Surface : DarkTheme.Window; pages[i].Button.ForeColor = active ? DarkTheme.Text : DarkTheme.Muted;
-            pages[i].Button.Image?.Dispose(); pages[i].Button.Image = GlyphPainter.Create(new[] { "aim", "library", "profiles", "settings" }[i % 4], 18, active ? DarkTheme.Accent : DarkTheme.Muted);
+            pages[i].Button.Image?.Dispose(); pages[i].Button.Image = GlyphPainter.Create(new[] { "aim", "edit", "profiles", "settings" }[i % 4], 18, active ? DarkTheme.Accent : DarkTheme.Muted);
         }
     }
 }

@@ -240,13 +240,11 @@ internal sealed class ControlWindow : Form
         minimizeToTray.Text = "Minimize to tray with the − button"; AddRow(grid, "Minimize button", minimizeToTray);
         minimizeToTray.CheckedChanged += (_, _) => { if (!initializing) { data.MinimizeToTray = minimizeToTray.Checked; Store.Save(data); } };
         launchWithGame.Text = "Start overlay when the game starts"; AddRow(grid, "Game startup", launchWithGame);
-        var gameRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
-        gameRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); gameRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90));
-        gameExecutable.Dock = DockStyle.Fill; gameRow.Controls.Add(gameExecutable, 0, 0);
-        var browseGame = Button("Browse", DarkTheme.SurfaceHover, DarkTheme.Text); browseGame.Dock = DockStyle.Fill;
+        var browseGame = Button("Browse…", DarkTheme.SurfaceHover, DarkTheme.Text);
+        var gameRow = GamePathRow.Create(gameExecutable, browseGame);
         browseGame.Click += (_, _) => { using var dialog = new OpenFileDialog { Title = "Select game executable", Filter = "Executable|*.exe", CheckFileExists = true }; if (dialog.ShowDialog(this) == DialogResult.OK) { gameExecutable.Text = dialog.FileName; SaveGameStartup(); } };
-        gameRow.Controls.Add(browseGame, 1, 0); AddRow(grid, "Game EXE", gameRow);
-        gameExecutable.Leave += (_, _) => SaveGameStartup();
+        AddRow(grid, "Game EXE", gameRow);
+        gameExecutable.Leave += (_, _) => { if (!launchWithGame.Checked || GameLauncher.IsValidTarget(gameExecutable.Text.Trim().Trim('"'))) SaveGameStartup(); };
         gameExecutable.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { SaveGameStartup(); e.SuppressKeyPress = true; } };
         launchWithGame.CheckedChanged += (_, _) => SaveGameStartup();
         var checkUpdates = Button("Check for updates", DarkTheme.SurfaceHover, DarkTheme.Text); checkUpdates.Click += async (_, _) => await CheckUpdates(true); AddRow(grid, "Updates", checkUpdates); AddRow(grid, "Version " + AppUpdater.CurrentVersion.ToString(3), updateStatus);
@@ -648,11 +646,17 @@ internal static class AimRenderer
         float scale = preview ? Math.Min(bounds.Width, bounds.Height) / 230f : 1f;
         float cx = bounds.Width / 2f + s.OffsetX * scale, cy = bounds.Height / 2f + s.OffsetY * scale;
         float arm = s.Size * scale / 2f, gap = s.Gap * scale, width = s.Thickness * scale;
+        // Gap moves complete arms away from the center without reversing endpoints.
+        float reach = arm + gap;
+        if (s.Thickness == 1) {
+            g.SmoothingMode = SmoothingMode.None; g.PixelOffsetMode = PixelOffsetMode.None;
+            cx = MathF.Round(cx); cy = MathF.Round(cy); width = Math.Max(1, MathF.Round(width));
+        }
         int alpha = (int)Math.Clamp(color.A * s.Opacity / 100f, 0, 255);
         using var main = new Pen(Color.FromArgb(alpha, color), width) { StartCap = LineCap.Round, EndCap = LineCap.Round };
         using var edge = new Pen(Color.FromArgb(alpha, outline), width + Math.Max(2, width * .8f)) { StartCap = LineCap.Round, EndCap = LineCap.Round };
         using var fill = new SolidBrush(Color.FromArgb(alpha, color));
-        void Line(float a, float b, float c, float d) { if (s.Outline) g.DrawLine(edge, a, b, c, d); g.DrawLine(main, a, b, c, d); }
+        void Line(float a, float b, float c, float d) { if (s.Thickness == 1) { a = MathF.Round(a); b = MathF.Round(b); c = MathF.Round(c); d = MathF.Round(d); } if (s.Outline) g.DrawLine(edge, a, b, c, d); g.DrawLine(main, a, b, c, d); }
         if (s.Shape == "Image" && File.Exists(s.ImagePath))
         {
             try
@@ -718,10 +722,10 @@ internal static class AimRenderer
         }
         if (s.Shape == "Dot") { float d = Math.Max(2, width * 1.5f); g.FillEllipse(fill, cx - d / 2, cy - d / 2, d, d); return; }
         if (s.Shape is "Circle" or "Square") { float d = arm * 2; var r = new RectangleF(cx - d / 2, cy - d / 2, d, d); if (s.Shape == "Circle") { if (s.Outline) g.DrawEllipse(edge, r); g.DrawEllipse(main, r); } else { if (s.Outline) g.DrawRectangle(edge, r.X, r.Y, r.Width, r.Height); g.DrawRectangle(main, r.X, r.Y, r.Width, r.Height); } return; }
-        if (s.Shape is "Cross" or "Cross + Dot" or "T-shape" or "Predator") { Line(cx - arm, cy, cx - gap, cy); Line(cx + gap, cy, cx + arm, cy); if (s.Shape != "Predator") Line(cx, cy - arm, cx, cy - gap); if (s.Shape != "T-shape") Line(cx, cy + gap, cx, cy + arm); }
-        else if (s.Shape == "Diagonal") { Line(cx - arm, cy - arm, cx - gap, cy - gap); Line(cx + gap, cy + gap, cx + arm, cy + arm); Line(cx + arm, cy - arm, cx + gap, cy - gap); Line(cx - gap, cy + gap, cx - arm, cy + arm); }
+        if (s.Shape is "Cross" or "Cross + Dot" or "T-shape" or "Predator") { Line(cx - reach, cy, cx - gap, cy); Line(cx + gap, cy, cx + reach, cy); if (s.Shape != "Predator") Line(cx, cy - reach, cx, cy - gap); if (s.Shape != "T-shape") Line(cx, cy + gap, cx, cy + reach); }
+        else if (s.Shape == "Diagonal") { Line(cx - reach, cy - reach, cx - gap, cy - gap); Line(cx + gap, cy + gap, cx + reach, cy + reach); Line(cx + reach, cy - reach, cx + gap, cy - gap); Line(cx - gap, cy + gap, cx - reach, cy + reach); }
         else if (s.Shape == "Chevron") { Line(cx - arm, cy + arm * .35f, cx, cy - arm * .45f); Line(cx, cy - arm * .45f, cx + arm, cy + arm * .35f); }
-        else if (s.Shape == "3-ray") { for (int i = 0; i < 3; i++) { double a = (i * 120 - 90) * Math.PI / 180; Line(cx + (float)Math.Cos(a) * gap, cy + (float)Math.Sin(a) * gap, cx + (float)Math.Cos(a) * arm, cy + (float)Math.Sin(a) * arm); } }
+        else if (s.Shape == "3-ray") { for (int i = 0; i < 3; i++) { double a = (i * 120 - 90) * Math.PI / 180; Line(cx + (float)Math.Cos(a) * gap, cy + (float)Math.Sin(a) * gap, cx + (float)Math.Cos(a) * reach, cy + (float)Math.Sin(a) * reach); } }
         if (s.Shape is "Cross + Dot" or "Predator") { float d = Math.Max(2, width * 1.4f); g.FillEllipse(fill, cx - d / 2, cy - d / 2, d, d); }
     }
 

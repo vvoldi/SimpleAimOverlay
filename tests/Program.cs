@@ -22,6 +22,7 @@ using(var box=(Control)Activator.CreateInstance(number,[-2000,2000,0])!) {
     editor.Text="";number.GetMethod("Commit",Private)!.Invoke(box,null);Assert(editor.Text=="2000","Empty input restored on commit");
 }
 RunNewChecks(assembly);
+RunRenderingChecks(assembly);
 var updater=assembly.GetType("SimpleAimOverlay.AppUpdater")!;
 var parseVersion=updater.GetMethod("ParseVersion",BindingFlags.NonPublic|BindingFlags.Static)!;
 Assert((Version)parseVersion.Invoke(null,["v0.1.10-self-signed"])! > (Version)parseVersion.Invoke(null,["v0.1.9-self-signed"])!,"Numeric version ordering");
@@ -101,6 +102,64 @@ static void RunNewChecks(Assembly assembly) {
         editor.Close();
     }
     Console.WriteLine("PASS: game matching, closed dropdown wheel, pencil continuity, symmetry, rectangle, fill, eraser, resize and undo.");
+}
+static void RunRenderingChecks(Assembly assembly) {
+    var settingsType=assembly.GetType("SimpleAimOverlay.AimSettings")!;
+    var settings=Activator.CreateInstance(settingsType)!;
+    void Set(string name,object value)=>settingsType.GetProperty(name)!.SetValue(settings,value);
+    Set("Shape","Cross");Set("Thickness",1);Set("Size",32);Set("Gap",7);Set("Opacity",100);
+    var render=assembly.GetType("SimpleAimOverlay.AimRenderer")!.GetMethod("Draw",BindingFlags.Public|BindingFlags.Static)!;
+    System.Drawing.Bitmap Draw(){var image=new System.Drawing.Bitmap(512,512);using var graphics=System.Drawing.Graphics.FromImage(image);render.Invoke(null,[graphics,new System.Drawing.Rectangle(0,0,512,512),settings,System.Drawing.Color.Lime,System.Drawing.Color.Black,false]);return image;}
+    using(var small=Draw()) {
+        Assert(small.GetPixel(270,256).A==255,"One-pixel crosshair is fully opaque");
+        Assert(small.GetPixel(270,255).A==0&&small.GetPixel(270,257).A==0,"One-pixel line is not spread across rows");
+    }
+    Set("Gap",100);
+    using(var large=Draw()) {
+        Assert(large.GetPixel(360,256).A==255,"Large gap shifts the arm outward");
+        Assert(large.GetPixel(300,256).A==0,"Large gap does not reverse the arm toward the center");
+        int count=0;for(int x=257;x<512;x++)if(large.GetPixel(x,256).A>0)count++;
+        Assert(count<=18&&count>=16,"Large gap preserves arm length");
+    }
+    Set("Gap",7);Set("Shape","Diagonal");
+    using(var diagonal=Draw())Assert(diagonal.GetPixel(270,270).A==255,"One-pixel diagonal remains opaque");
+    var canvasType=assembly.GetType("SimpleAimOverlay.DrawingCanvas")!;
+    using var pixels=new System.Drawing.Bitmap(4,4);using(var g=System.Drawing.Graphics.FromImage(pixels))g.Clear(System.Drawing.Color.Lime);
+    using var canvas=(Control)Activator.CreateInstance(canvasType,[pixels])!;canvas.CreateControl();
+    using var grid=new System.Drawing.Bitmap(canvas.Width,canvas.Height);canvas.DrawToBitmap(grid,canvas.ClientRectangle);
+    Assert(grid.GetPixel(10,5).ToArgb()!=grid.GetPixel(15,5).ToArgb(),"Visible separator between equally colored cells");
+    var progressType=assembly.GetType("SimpleAimOverlay.UpdateProgressWindow")!;
+    using var window=(Form)Activator.CreateInstance(progressType,true)!;
+    var progressRecord=assembly.GetType("SimpleAimOverlay.AppUpdater+DownloadProgress")!;
+    var record=Activator.CreateInstance(progressRecord,[25L*1024*1024,100L*1024*1024,2d*1024*1024])!;
+    progressType.GetMethod("Report")!.Invoke(window,[record]);
+    var headline=(Label)progressType.GetField("headline",Private)!.GetValue(window)!;
+    Assert(headline.Text.Contains("25%"),"Progress window displays percentage");
+    if(Environment.GetEnvironmentVariable("SAO_RENDER_EDITOR")=="1") {
+        window.Show();Application.DoEvents();using var snapshot=new System.Drawing.Bitmap(window.Width,window.Height);window.DrawToBitmap(snapshot,new System.Drawing.Rectangle(0,0,window.Width,window.Height));snapshot.Save(Path.Combine(Path.GetTempPath(),"SimpleAimOverlay-update-0112.png"));progressType.GetMethod("Finish")!.Invoke(window,null);
+    }
+    var progressInterface=typeof(Progress<>).MakeGenericType(progressRecord);
+    var progress=Activator.CreateInstance(progressInterface)!;
+    var copy=assembly.GetType("SimpleAimOverlay.AppUpdater")!.GetMethod("CopyDownloadAsync",BindingFlags.NonPublic|BindingFlags.Static)!;
+    byte[] payload=new byte[600000];new Random(42).NextBytes(payload);
+    using(var input=new MemoryStream(payload))using(var output=new MemoryStream()) {
+        ((Task)copy.Invoke(null,[input,output,(long)payload.Length,progress,CancellationToken.None])!).GetAwaiter().GetResult();
+        Assert(output.ToArray().SequenceEqual(payload),"Download copy preserves all bytes");
+    }
+    using(var input=new MemoryStream(payload))using(var output=new MemoryStream()) {
+        try{((Task)copy.Invoke(null,[input,output,(long)payload.Length+1,progress,CancellationToken.None])!).GetAwaiter().GetResult();throw new Exception("Truncated download accepted");}catch(InvalidDataException){}
+    }
+    using(var input=new MemoryStream(payload))using(var output=new MemoryStream()) {
+        try{((Task)copy.Invoke(null,[input,output,(long)payload.Length,progress,new CancellationToken(true)])!).GetAwaiter().GetResult();throw new Exception("Cancelled download continued");}catch(OperationCanceledException){}
+    }
+    using var pathHost=new Form { ClientSize=new System.Drawing.Size(480,45) };
+    var inputBox=new TextBox {Text=@"C:\Program Files (x86)\Steam\steamapps\common\PUBG\TslGame\Binaries\Win64\TslGame.exe"};
+    var browse=new Button {Text="Browse…",AutoSize=true,Padding=new Padding(12,4,12,4),Margin=new Padding(0,4,8,4)};
+    var row=(Control)assembly.GetType("SimpleAimOverlay.GamePathRow")!.GetMethod("Create",BindingFlags.NonPublic|BindingFlags.Static)!.Invoke(null,[inputBox,browse])!;
+    pathHost.Controls.Add(row);pathHost.Show();Application.DoEvents();
+    Assert(browse.Height>=30&&browse.Width>=90&&browse.Bottom<=row.Height,"Game browse button fits its row");
+    Assert(inputBox.Right<browse.Left&&inputBox.Top>=0&&inputBox.Bottom<=row.Height,"Game path and Browse do not overlap or clip");pathHost.Close();
+    Console.WriteLine("PASS: opaque thin strokes, non-inverting gap, editor grid contrast, update progress display.");
 }
 sealed class Handler(string json):HttpMessageHandler{
 public int Count;

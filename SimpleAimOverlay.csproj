@@ -10,10 +10,10 @@
     <Product>Simple Aim Overlay</Product>
     <Description>A lightweight, configurable Windows crosshair overlay.</Description>
     <Authors>SimpleAimOverlay contributors</Authors>
-    <Version>0.1.11</Version>
+    <Version>0.1.12</Version>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
-    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract><EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <ApplicationIcon>Assets\simple-aim-overlay.ico</ApplicationIcon>
     <ApplicationManifest Condition="'$(UseUiAccess)' != 'true'">app.manifest</ApplicationManifest>
     <ApplicationManifest Condition="'$(UseUiAccess)' == 'true'">app.uiaccess.manifest</ApplicationManifest>

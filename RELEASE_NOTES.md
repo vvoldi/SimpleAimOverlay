@@ -1,3 +1,11 @@
+## 0.1.12
+
+- Show a dedicated dark update window with download percentage, transferred size, speed, remaining time and cancellation. Copy network data off the UI thread and throttle progress updates.
+- Compress the self-contained app and installer bundles, reducing the installer from about 234 MB to 105 MB.
+- Fix Game EXE row sizing so Browse remains fully visible; incomplete typed paths no longer interrupt clicking Browse.
+- Draw high-contrast pixel boundaries in the editor, including over adjacent painted cells.
+- Render thickness-1 strokes on pixel boundaries without anti-alias transparency.
+- Make Gap move intact arms outward, preserving their length instead of reversing them when the gap exceeds half the size.
 ## 0.1.11
 
 - Remove bundled image presets and replace Gallery with Editor for personal drawings. Existing personal drawings are preserved; old bundled selections fall back to Cross.

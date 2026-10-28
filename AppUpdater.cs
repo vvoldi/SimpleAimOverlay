@@ -40,7 +40,7 @@ internal sealed class AppUpdater : IDisposable
     {
         if (busy || owner.IsDisposed || (!manual && startupChecked)) return;
         if (!manual) startupChecked = true;
-        busy = true; string? file = null; bool launched = false;
+        busy = true; string? file = null; bool launched = false; UpdateProgressWindow? progressWindow = null;
         try {
             status("Checking for updates…");
             using var checkTimeout = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
@@ -55,21 +55,20 @@ internal sealed class AppUpdater : IDisposable
             string directory = Path.Combine(Path.GetTempPath(),"SimpleAimOverlay-update-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(directory);
             file = Path.Combine(directory,"Setup.exe");
             using var downloadTimeout = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
-            downloadTimeout.CancelAfter(TimeSpan.FromMinutes(10));
-            using (var response = await client.GetAsync(release.Url,HttpCompletionOption.ResponseHeadersRead,downloadTimeout.Token)) {
-                response.EnsureSuccessStatusCode();
-                await using var input = await response.Content.ReadAsStreamAsync(downloadTimeout.Token);
-                await using var output = new FileStream(file,FileMode.CreateNew,FileAccess.Write,FileShare.None,81920,true);
-                byte[] buffer = new byte[81920]; long total = 0; int previousPercent = -1, read;
-                while ((read = await input.ReadAsync(buffer,downloadTimeout.Token)) > 0) {
-                    total += read; if (total > release.Size) throw new InvalidDataException("Downloaded package size does not match the release.");
-                    await output.WriteAsync(buffer.AsMemory(0,read),downloadTimeout.Token);
-                    int percent = (int)(total*100/release.Size); if(percent!=previousPercent){status($"Downloading update… {percent}%");previousPercent=percent;}
-                }
-                if(total!=release.Size)throw new InvalidDataException("The download is incomplete.");
-            }
-            status("Verifying update…");
-            await VerifyAsync(file,release.Digest,lifetime.Token);
+            downloadTimeout.CancelAfter(TimeSpan.FromMinutes(30));
+            progressWindow = new UpdateProgressWindow();
+            progressWindow.CancelRequested += () => downloadTimeout.Cancel();
+            progressWindow.Show(owner);
+            var progress = new Progress<DownloadProgress>(p => {
+                if (owner.IsDisposed) return;
+                status($"Downloading update… {p.Received * 100 / Math.Max(1,p.Total)}%");
+                progressWindow.Report(p);
+            });
+            await DownloadAsync(release, file, progress, downloadTimeout.Token);
+            status("Verifying update…"); progressWindow.SetStage("Verifying update…");
+            await VerifyAsync(file, release.Digest, downloadTimeout.Token);
+            downloadTimeout.Token.ThrowIfCancellationRequested();
+            progressWindow.SetStage("Waiting for Windows approval…");
             var start = new ProcessStartInfo(file) { UseShellExecute=true, Verb="runas" };
             start.ArgumentList.Add("/update"); start.ArgumentList.Add(Environment.ProcessId.ToString());
             using var process = Process.Start(start) ?? throw new InvalidOperationException("Could not start the installer.");
@@ -77,8 +76,37 @@ internal sealed class AppUpdater : IDisposable
         }
         catch (OperationCanceledException) { if(!owner.IsDisposed)status("Update check timed out or was cancelled."); }
         catch (System.ComponentModel.Win32Exception ex) when(ex.NativeErrorCode==1223) { if(!owner.IsDisposed)status("Update cancelled. You can try again in Settings."); }
-        catch (Exception ex) { if(!owner.IsDisposed){status("Update unavailable · try again in Settings");if(manual)DarkMessage.Show(owner,ex.Message,"Update could not be completed");} }
-        finally { busy=false; if(!launched && file!=null){try{File.Delete(file);Directory.Delete(Path.GetDirectoryName(file)!);}catch{}} }
+        catch (Exception ex) { if(!owner.IsDisposed){status("Update unavailable · try again in Settings");if(manual || progressWindow != null)DarkMessage.Show(owner,ex.Message,"Update could not be completed");} }
+        finally { if(progressWindow != null) { if(!progressWindow.IsDisposed)progressWindow.Finish();progressWindow.Dispose(); } busy=false; if(!launched && file!=null){try{File.Delete(file);Directory.Delete(Path.GetDirectoryName(file)!);}catch{}} }
+    }
+    internal sealed record DownloadProgress(long Received, long Total, double BytesPerSecond);
+    internal async Task DownloadAsync(Release release, string file, IProgress<DownloadProgress> progress, CancellationToken token)
+    {
+        using var response = await client.GetAsync(release.Url,HttpCompletionOption.ResponseHeadersRead,token).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        await using var input = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
+        await using var output = new FileStream(file,FileMode.CreateNew,FileAccess.Write,FileShare.None,262144,true);
+        await CopyDownloadAsync(input,output,release.Size,progress,token).ConfigureAwait(false);
+    }
+    internal static async Task CopyDownloadAsync(Stream input, Stream output, long expectedSize, IProgress<DownloadProgress> progress, CancellationToken token)
+    {
+        byte[] buffer = new byte[262144]; long total = 0;
+        var elapsed = Stopwatch.StartNew(); long reportedAt = -250;
+        while (true) {
+            // Abort a stalled connection without imposing a short total download limit.
+            using var idle = CancellationTokenSource.CreateLinkedTokenSource(token);
+            idle.CancelAfter(TimeSpan.FromSeconds(45));
+            int read = await input.ReadAsync(buffer,idle.Token).ConfigureAwait(false);
+            if (read == 0) break;
+            total += read;
+            if (total > expectedSize) throw new InvalidDataException("Downloaded package size does not match the release.");
+            await output.WriteAsync(buffer.AsMemory(0,read),token).ConfigureAwait(false);
+            if (elapsed.ElapsedMilliseconds-reportedAt >= 250 || total==expectedSize) {
+                progress.Report(new(total,expectedSize,total/Math.Max(0.1,elapsed.Elapsed.TotalSeconds)));
+                reportedAt=elapsed.ElapsedMilliseconds;
+            }
+        }
+        if (total != expectedSize) throw new InvalidDataException("The download is incomplete.");
     }
     internal static async Task VerifyAsync(string file,string digest,CancellationToken token)
     {

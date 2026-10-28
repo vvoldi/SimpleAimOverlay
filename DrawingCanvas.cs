@@ -36,7 +36,13 @@ internal sealed class DrawingCanvas : Control
         using var first=new SolidBrush(DarkTheme.Input);using var second=new SolidBrush(DarkTheme.Surface);
         for(int y=0;y<image.Height;y++)for(int x=0;x<image.Width;x++)e.Graphics.FillRectangle(((x+y)&1)==0?first:second,x*PixelSize,y*PixelSize,PixelSize,PixelSize);
         e.Graphics.DrawImage(image,new Rectangle(0,0,image.Width*PixelSize,image.Height*PixelSize));
-        if(PixelSize>=5){using var grid=new Pen(Color.FromArgb(45,190,200,215));for(int x=0;x<=image.Width;x++)e.Graphics.DrawLine(grid,x*PixelSize,0,x*PixelSize,image.Height*PixelSize);for(int y=0;y<=image.Height;y++)e.Graphics.DrawLine(grid,0,y*PixelSize,image.Width*PixelSize,y*PixelSize);}
+        if(PixelSize>=5){
+            e.Graphics.PixelOffsetMode=PixelOffsetMode.None;
+            using var dark=new Pen(Color.FromArgb(220,10,14,20),2);
+            using var light=new Pen(Color.FromArgb(170,235,240,246),1);
+            for(int x=0;x<=image.Width;x++){int px=x*PixelSize;e.Graphics.DrawLine(dark,px,0,px,image.Height*PixelSize);e.Graphics.DrawLine(light,px,0,px,image.Height*PixelSize);}
+            for(int y=0;y<=image.Height;y++){int py=y*PixelSize;e.Graphics.DrawLine(dark,0,py,image.Width*PixelSize,py);e.Graphics.DrawLine(light,0,py,image.Width*PixelSize,py);}
+        }
         using var center=new Pen(Color.FromArgb(110,DarkTheme.Accent));e.Graphics.DrawLine(center,Width/2,0,Width/2,Height);e.Graphics.DrawLine(center,0,Height/2,Width,Height/2);
     }
     private Point Pixel(Point p)=>new(Math.Clamp(p.X/PixelSize,0,image.Width-1),Math.Clamp(p.Y/PixelSize,0,image.Height-1));

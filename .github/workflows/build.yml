@@ -15,11 +15,12 @@ jobs:
           dotnet-version: 10.0.x
       - name: Publish UIAccess single-file app
         run: >-
-          dotnet publish -c Release -r win-x64 --self-contained true
+          dotnet publish SimpleAimOverlay.csproj -c Release -r win-x64 --self-contained true
           -p:PublishSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true
           -p:UseUiAccess=true
       - uses: actions/upload-artifact@v4
         with:
-          name: SimpleAimOverlay-win-x64
+          name: SimpleAimOverlay-win-x64-unsigned
           path: bin/Release/net10.0-windows/win-x64/publish/SimpleAimOverlay.exe
+

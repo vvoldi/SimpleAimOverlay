@@ -10,7 +10,7 @@
     <Product>Simple Aim Overlay</Product>
     <Description>A lightweight, configurable Windows crosshair overlay.</Description>
     <Authors>SimpleAimOverlay contributors</Authors>
-    <Version>0.1.7</Version>
+    <Version>0.1.8</Version>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
@@ -18,7 +18,7 @@
     <ApplicationManifest Condition="'$(UseUiAccess)' != 'true'">app.manifest</ApplicationManifest>
     <ApplicationManifest Condition="'$(UseUiAccess)' == 'true'">app.uiaccess.manifest</ApplicationManifest>
   </PropertyGroup>
-  <ItemGroup>
+  <ItemGroup><Compile Remove="packaging/**/*.cs" /><EmbeddedResource Remove="packaging/**/*" /><None Remove="packaging/**/*" />
     <EmbeddedResource Include="Assets\Crosshairs\*.png" LogicalName="SimpleAimOverlay.Assets.Crosshairs.%(Filename)%(Extension)" />
     <EmbeddedResource Include="Assets\Fonts\Inter-Variable.ttf" LogicalName="SimpleAimOverlay.Assets.Fonts.Inter-Variable.ttf" />
     <EmbeddedResource Include="Assets\Fonts\OFL.txt" LogicalName="SimpleAimOverlay.Assets.Fonts.OFL.txt" />
@@ -26,6 +26,7 @@
     <None Include="Assets\simple-aim-overlay.svg" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
+
 
 
 

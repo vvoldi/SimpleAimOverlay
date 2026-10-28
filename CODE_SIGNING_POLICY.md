@@ -1,18 +1,14 @@
 # Code signing policy
 
-**Status:** SignPath Foundation approval has not been granted. No public signed release is available yet.
+Releases use the maintainer's self-signed code-signing certificate. This is a personal/friends distribution model, not a publicly trusted CA signature. No SignPath endorsement or signing is claimed.
 
-If accepted, release and download pages will carry this notice: “Free code signing provided by SignPath.io, certificate by SignPath Foundation.” Every signed release will be built from this public source repository and require manual approval before signing.
+The EXE installer explicitly asks for consent before trusting the public certificate in the local machine Root and TrustedPublisher stores. The UIAccess app is installed in Program Files. The installer pins the certificate thumbprint. Updates reuse the same certificate; trusting a certificate does not eliminate Windows administrator or SmartScreen prompts.
 
-## Project roles
+The private key stays in the maintainer's Windows certificate store. Neither the repository nor the installer contains a private key. Only the public certificate is embedded in Setup. Generated payloads, installers and certificate exports are excluded from Git.
 
-- Committers and reviewers: [@vvoldi](https://github.com/vvoldi)
-- Signing approver: [@vvoldi](https://github.com/vvoldi)
+Build installable releases with scripts/Build-SelfSignedRelease.ps1 using the existing certificate. Do not generate a fresh certificate for every release. Changing the signing identity requires a deliberate installer pin update and renewed user trust.
 
-## Privacy
+Unsigned GitHub Actions artifacts are for build checks, not ready-to-install UIAccess releases. Published releases include a signed app, a signed installer and a SHA-256 checksum.
 
-This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. Settings and imported crosshair images are stored locally under `%LOCALAPPDATA%\SimpleAimOverlay`.
-
-## Release integrity
-
-Only binaries built from a reviewed commit in this repository may be submitted for signing. Each signing request must be manually approved by the signing approver. Product name and version metadata must match the corresponding release.
+Maintainer: [@vvoldi](https://github.com/vvoldi).
+Settings and images stay locally in %LOCALAPPDATA%/SimpleAimOverlay. The app does not require an account or send telemetry.

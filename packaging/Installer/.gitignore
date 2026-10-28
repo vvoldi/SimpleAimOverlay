@@ -1,0 +1,4 @@
+# Generated payload is produced from src/SimpleAimOverlay before building the setup.
+SimpleAimOverlay.payload.exe
+bin/
+obj/

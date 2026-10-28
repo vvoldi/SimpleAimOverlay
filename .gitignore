@@ -10,3 +10,4 @@ obj/
 *.cer
 *.pem
 *.key
+dist/

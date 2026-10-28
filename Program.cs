@@ -1,4 +1,5 @@
 using System.Drawing.Drawing2D;
+using System.Reflection;
 using System.Text.Json;
 using System.Windows.Forms;
 using Microsoft.Win32;
@@ -89,6 +90,12 @@ internal sealed class ControlWindow : Form
     private bool holdDown, desiredVisible = true;
     private Color aimColor = Color.LimeGreen, borderColor = Color.FromArgb(16, 24, 32);
     private static readonly string[] Shapes = ["Cross", "Dot", "Circle", "Cross + Dot", "T-shape", "Diagonal", "Chevron", "3-ray", "Square", "Predator", "Image"];
+    private static readonly string[] BundledCrosshairs = [
+        "2-sectors-dot.png", "arrow-dot.png", "chevron-big.png", "chevron-medium.png", "chevron-small.png",
+        "circle-cross.png", "circle-dot.png", "cross-diag-dot.png", "cross-dot-small.png", "cross-dot.png",
+        "cross-x-dot.png", "dot-2x2.png", "dot-4x4.png", "square-cross-dot.png", "t-shape-chevron.png",
+        "t-shape-dot.png", "tiny-cross-1.png", "tiny-cross.png", "tiny-thick-circle.png", "tiny-thin-circle.png"
+    ];
 
     [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)] private static extern bool RegisterHotKey(IntPtr hwnd, int id, uint modifiers, uint key);
     [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)] private static extern bool UnregisterHotKey(IntPtr hwnd, int id);
@@ -153,8 +160,8 @@ internal sealed class ControlWindow : Form
     {
         var p = Page("Бібліотека"); var layout = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 1 };
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42)); layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48)); p.Controls.Add(layout);
-        layout.Controls.Add(new Label { Text = "Додавай власні зображення прицілу у PNG, BMP або JPG.", ForeColor = Color.DimGray, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
-        images.Dock = DockStyle.Fill; images.IntegralHeight = false; layout.Controls.Add(images, 0, 1);
+        layout.Controls.Add(new Label { Text = "Вибери готовий приціл із галереї або додай власне зображення PNG, BMP чи JPG.", ForeColor = Color.DimGray, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
+        images.Dock = DockStyle.Fill; images.IntegralHeight = false; images.DrawMode = DrawMode.OwnerDrawFixed; images.ItemHeight = 72; images.DrawItem += DrawCrosshairItem; layout.Controls.Add(images, 0, 1);
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight };
         var add = Button("Додати зображення", Color.FromArgb(27, 101, 225), Color.White); add.Click += (_, _) => AddImage(); buttons.Controls.Add(add);
         var remove = Button("Видалити", Color.FromArgb(235, 239, 245), Color.FromArgb(40, 50, 65)); remove.Click += (_, _) => RemoveImage(); buttons.Controls.Add(remove);
@@ -237,7 +244,40 @@ internal sealed class ControlWindow : Form
     }
     private void PopulateImages()
     {
-        images.Items.Clear(); foreach (var x in data.Images) images.Items.Add(x);
+        string folder = Path.Combine(Store.Root, "crosshairs"); Directory.CreateDirectory(folder);
+        foreach (string name in BundledCrosshairs)
+        {
+            string destination = Path.Combine(folder, name);
+            if (!File.Exists(destination))
+            {
+                using Stream? source = Assembly.GetExecutingAssembly().GetManifestResourceStream("SimpleAimOverlay.Assets.Crosshairs." + name);
+                if (source != null) using (var target = File.Create(destination)) source.CopyTo(target);
+            }
+            if (File.Exists(destination) && !data.Images.Contains(name, StringComparer.OrdinalIgnoreCase)) data.Images.Add(name);
+        }
+        images.Items.Clear(); foreach (var x in data.Images) if (File.Exists(Path.Combine(folder, x))) images.Items.Add(x);
+        Store.Save(data);
+    }
+    private void DrawCrosshairItem(object? sender, DrawItemEventArgs e)
+    {
+        if (e.Index < 0 || e.Index >= images.Items.Count) return;
+        e.DrawBackground();
+        string name = images.Items[e.Index]?.ToString() ?? "";
+        var imageBox = new Rectangle(e.Bounds.Left + 8, e.Bounds.Top + 7, 56, 56);
+        string path = Path.Combine(Store.Root, "crosshairs", name);
+        try
+        {
+            using var image = Image.FromFile(path);
+            float scale = Math.Min((float)imageBox.Width / image.Width, (float)imageBox.Height / image.Height);
+            int width = Math.Max(1, (int)(image.Width * scale)), height = Math.Max(1, (int)(image.Height * scale));
+            var target = new Rectangle(imageBox.Left + (imageBox.Width - width) / 2, imageBox.Top + (imageBox.Height - height) / 2, width, height);
+            e.Graphics.InterpolationMode = InterpolationMode.NearestNeighbor;
+            e.Graphics.PixelOffsetMode = PixelOffsetMode.Half;
+            e.Graphics.DrawImage(image, target);
+        }
+        catch { }
+        TextRenderer.DrawText(e.Graphics, Path.GetFileNameWithoutExtension(name), e.Font, new Point(imageBox.Right + 10, e.Bounds.Top + 25), e.ForeColor, TextFormatFlags.EndEllipsis | TextFormatFlags.VerticalCenter);
+        e.DrawFocusRectangle();
     }
     private void Apply()
     {
@@ -338,6 +378,11 @@ internal sealed class ControlWindow : Form
     private void RemoveImage()
     {
         if (images.SelectedItem is not string name) return;
+        if (BundledCrosshairs.Contains(name, StringComparer.OrdinalIgnoreCase))
+        {
+            MessageBox.Show(this, "Готові приціли з галереї не можна видалити. Можна видаляти власні зображення.", "Бібліотека", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
         string p = Path.Combine(Store.Root, "crosshairs", name); try { if (File.Exists(p)) File.Delete(p); } catch { }
         data.Images.Remove(name); if (data.Current.ImagePath == p) { data.Current.ImagePath = ""; shape.SelectedItem = "Cross"; } PopulateImages(); Apply();
     }

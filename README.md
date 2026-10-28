@@ -55,3 +55,11 @@ Releases use a self-signed certificate and explicit local trust, not a publicly 
 
 ![Crosshair gallery](docs/screenshots/gallery.png)
 
+
+## Updates
+
+Starting with 0.1.10, the app checks for a newer public release once per launch. It does not poll periodically. Use **Settings > Check for updates** for another check at any time. Available updates require confirmation, then download with progress and verify both the release SHA-256 digest and the pinned publisher's Authenticode signature. Windows may request administrator approval. The installer waits for the running app to close, preserves settings, and launches the new version. If approval is cancelled, the current app stays open. Network errors do not prevent use of the overlay; retry manually later.
+
+Install 0.1.10 manually once on PCs using older releases. Release publishers must upload the version-matched `SimpleAimOverlay-X.Y.Z-Setup.exe` signed with the configured certificate. Certificate rotation requires a deliberately planned migration; the updater will not accept an unrelated signer.
+
+Regression checks (Windows, .NET 10): `dotnet run --project tests/RegressionChecks.csproj -- dist/SimpleAimOverlay-0.1.10-Setup.exe`.

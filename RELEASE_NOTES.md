@@ -1,3 +1,10 @@
+## 0.1.10
+
+- Apply typed center offsets immediately; accept negative coordinates and normalize invalid/out-of-range edits on Enter or focus loss.
+- Check the public GitHub release once per application launch, or manually through Settings > Check for updates. No periodic background polling.
+- Offer verified installer downloads with progress. Check SHA-256 and the expected Authenticode publisher before requesting administrator approval.
+- Wait for the old process to exit, replace the application atomically, preserve settings, and restart after an in-app update. Cancelling administrator approval keeps the current app running.
+- Users on older versions need to install 0.1.10 manually once to receive the updater.
 ## 0.1.9
 
 - Replace the color dialog with a saturation/value canvas, hue strip, RGBA and HSV inputs, hex entry, and current/original previews.

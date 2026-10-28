@@ -23,15 +23,16 @@ internal static class Program
         try
         {
             if (args.Any(a => a.Equals("/uninstall", StringComparison.OrdinalIgnoreCase))) { Uninstall(); return; }
-            Install();
+            int? parent = args.Length == 2 && args[0] == "/update" && int.TryParse(args[1], out int pid) && pid > 0 ? pid : null;
+            Install(parent);
         }
         catch (Exception ex) { DarkMessage.Show("The operation could not be completed.\n\n" + ex.Message, Product, MessageBoxButtons.OK, MessageBoxIcon.Error); }
     }
 
-    static void Install()
+    static void Install(int? parent)
     {
-        var result = DarkMessage.Show(
-            "This is a self-signed Simple Aim Overlay 0.1.9 build.\n\n" +
+        var result = parent.HasValue ? DialogResult.Yes : DarkMessage.Show(
+            "This is a self-signed Simple Aim Overlay 0.1.10 build.\n\n" +
             "Setup will add the SimpleAimOverlay test certificate to this PC's trusted certificate stores " +
             "and install the app in Program Files (required for UIAccess).\n\n" +
             "Only continue if you trust the package source. This build does not include a DXGI hook.\n\n" +
@@ -39,13 +40,19 @@ internal static class Program
             Product, MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
         if (result != DialogResult.Yes) return;
 
+        if (parent.HasValue) {
+            try { using var app = Process.GetProcessById(parent.Value); if (app.ProcessName == "SimpleAimOverlay" && !app.WaitForExit(30000)) throw new InvalidOperationException("Close Simple Aim Overlay and run setup again."); }
+            catch (ArgumentException) { /* The app already exited. */ }
+        }
         Directory.CreateDirectory(InstallDir);
         var certBytes = ReadResource("test.cer");
         var cert = X509CertificateLoader.LoadCertificate(certBytes);
         if (!cert.Thumbprint!.Equals(CertThumb, StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("The bundled certificate failed its thumbprint check.");
         AddToStore(StoreName.Root, cert);
         AddToStore(StoreName.TrustedPublisher, cert);
-        File.WriteAllBytes(Path.Combine(InstallDir, AppExe), ReadResource("payload.exe"));
+        string target = Path.Combine(InstallDir, AppExe), staging = target + ".new";
+        File.WriteAllBytes(staging, ReadResource("payload.exe"));
+        if (File.Exists(target)) File.Replace(staging, target, null); else File.Move(staging, target);
         string uninstallerPath = Path.Combine(InstallDir, "Uninstall-" + Guid.NewGuid().ToString("N") + ".exe");
         string runningSetup = Environment.ProcessPath ?? throw new InvalidOperationException("Could not locate the setup executable.");
         File.WriteAllBytes(uninstallerPath, File.ReadAllBytes(runningSetup));
@@ -53,14 +60,14 @@ internal static class Program
         using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\SimpleAimOverlayTest"))
         {
             key.SetValue("DisplayName", Product + " (Self-signed)");
-            key.SetValue("DisplayVersion", "0.1.9");
+            key.SetValue("DisplayVersion", "0.1.10");
             key.SetValue("Publisher", "SimpleAimOverlay contributors (local test certificate)");
             key.SetValue("InstallLocation", InstallDir);
             key.SetValue("DisplayIcon", Path.Combine(InstallDir, AppExe));
             key.SetValue("UninstallString", "\"" + uninstallerPath + "\" /uninstall");
             key.SetValue("NoModify", 1, RegistryValueKind.DWord); key.SetValue("NoRepair", 1, RegistryValueKind.DWord);
         }
-        if (DarkMessage.Show("Installation is complete. Launch Simple Aim Overlay now?", Product, MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
+        if (parent.HasValue || DarkMessage.Show("Installation is complete. Launch Simple Aim Overlay now?", Product, MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
             Process.Start(new ProcessStartInfo(Path.Combine(InstallDir, AppExe)) { UseShellExecute = true });
     }
 

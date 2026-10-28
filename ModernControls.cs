@@ -92,8 +92,8 @@ internal sealed class DarkNumberBox : UserControl
         set
         {
             int next = Math.Clamp(value, Minimum, Maximum);
-            if (this.value == next) return;
-            this.value = next; editor.Text = next.ToString(); Invalidate(); ValueChanged?.Invoke(this, EventArgs.Empty);
+            bool changed = this.value != next;
+            this.value = next; editor.Text = next.ToString(); Invalidate(); if (changed) ValueChanged?.Invoke(this, EventArgs.Empty);
         }
     }
     public event EventHandler? ValueChanged;
@@ -102,7 +102,13 @@ internal sealed class DarkNumberBox : UserControl
     {
         Minimum = min; Maximum = max; value = Math.Clamp(initial, min, max); Size = new Size(104, 30); MinimumSize = new Size(78, 28); BackColor = DarkTheme.Input;
         editor.BorderStyle = BorderStyle.None; editor.BackColor = DarkTheme.Input; editor.ForeColor = DarkTheme.Text; editor.Font = AppFonts.Regular(10); editor.Text = value.ToString(); editor.TextAlign = HorizontalAlignment.Center;
-        editor.KeyDown += (_, e) => { if (e.KeyCode == Keys.Up) { Value++; e.Handled = true; } else if (e.KeyCode == Keys.Down) { Value--; e.Handled = true; } else if (e.KeyCode == Keys.Enter) { Commit(); e.Handled = true; } };
+        editor.KeyDown += (_, e) => { if (e.KeyCode == Keys.Up) { Value++; e.Handled = true; } else if (e.KeyCode == Keys.Down) { Value--; e.Handled = true; } else if (e.KeyCode == Keys.Enter) { Commit(); e.Handled = true; e.SuppressKeyPress = true; } };
+        editor.TextChanged += (_, _) => {
+            // Allow intermediate empty/minus input without resetting the caret.
+            if (int.TryParse(editor.Text, out int n) && n >= Minimum && n <= Maximum && n != value) {
+                value = n; Invalidate(); ValueChanged?.Invoke(this, EventArgs.Empty);
+            }
+        };
         editor.Leave += (_, _) => Commit(); Controls.Add(editor); Resize += (_, _) => LayoutEditor(); LayoutEditor();
         SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
     }

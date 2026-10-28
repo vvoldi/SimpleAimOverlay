@@ -13,6 +13,8 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+      - name: Check offsets and update behavior
+        run: dotnet run --project tests/RegressionChecks.csproj
       - name: Publish UIAccess single-file app
         run: >-
           dotnet publish SimpleAimOverlay.csproj -c Release -r win-x64 --self-contained true

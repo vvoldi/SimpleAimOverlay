@@ -89,6 +89,8 @@ internal sealed class ControlWindow : Form
     private readonly Panel preview = new();
     private readonly Label status = new();
     private readonly NotifyIcon tray = new();
+    private readonly AppUpdater updater = new();
+    private readonly Label updateStatus = new() { ForeColor = DarkTheme.Muted, AutoSize = false, Text = "Checks once at launch; manual checks are always available." };
     private readonly System.Windows.Forms.Timer holdTimer = new() { Interval = 12 };
     private bool initializing = true;
     private bool holdDown, desiredVisible = true, allowExit;
@@ -115,14 +117,14 @@ internal sealed class ControlWindow : Form
         menu.Items.Add("Open", GlyphPainter.Create("aim", 16, DarkTheme.Accent), (_, _) => RestoreWindow()); menu.Items.Add("Show / hide", GlyphPainter.Create("visibility", 16), (_, _) => ToggleVisible()); menu.Items.Add("Exit", GlyphPainter.Create("delete", 16), (_, _) => { allowExit = true; Close(); }); tray.ContextMenuStrip = menu;
         tray.DoubleClick += (_, _) => RestoreWindow();
         holdTimer.Tick += (_, _) => PollHoldKey();
-        Shown += (_, _) => { overlay.Show(); BindHotkey(); holdTimer.Start(); };
+        Shown += async (_, _) => { overlay.Show(); BindHotkey(); holdTimer.Start(); await CheckUpdates(false); };
         FormClosing += (_, e) =>
         {
             if (!allowExit && e.CloseReason == CloseReason.UserClosing && data.MinimizeToTrayOnClose)
             {
                 e.Cancel = true; Hide(); return;
             }
-            holdTimer.Stop(); holdTimer.Dispose(); UnregisterHotKey(Handle, HotkeyId); tray.Visible = false; tray.Dispose(); overlay.Close();
+            updater.Dispose(); holdTimer.Stop(); holdTimer.Dispose(); UnregisterHotKey(Handle, HotkeyId); tray.Visible = false; tray.Dispose(); overlay.Close();
         };
     }
 
@@ -223,6 +225,7 @@ internal sealed class ControlWindow : Form
         holdKey.DropDownStyle = ComboBoxStyle.DropDownList; holdKey.Items.AddRange(["Right Mouse", "Left Mouse", "Middle Mouse", "Mouse X1", "Mouse X2", "Space", "Shift", "Ctrl", "Alt", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "Insert", "Pause"]); AddRow(grid, "Hold key", holdKey);
         startup.Text = "Launch when Windows starts"; startup.AutoSize = true; AddRow(grid, "Startup", startup);
         closeToTray.Text = "Minimize to tray when closed"; closeToTray.AutoSize = true; AddRow(grid, "Close button", closeToTray);
+        var checkUpdates = Button("Check for updates", DarkTheme.SurfaceHover, DarkTheme.Text); checkUpdates.Click += async (_, _) => await CheckUpdates(true); AddRow(grid, "Updates", checkUpdates); AddRow(grid, "Version " + AppUpdater.CurrentVersion.ToString(3), updateStatus);
         var text = new Label { Text = "UIAccess overlay. Fullscreen support depends on the game and its graphics mode.", Dock = DockStyle.Fill, ForeColor = DarkTheme.Muted, BackColor = DarkTheme.Surface, AutoSize = false };
         grid.Controls.Add(text, 0, grid.RowCount); grid.SetColumnSpan(text, 2); grid.RowCount++;
         visible.CheckedChanged += (_, _) => { if (!initializing) ToggleVisible(visible.Checked); };
@@ -234,6 +237,7 @@ internal sealed class ControlWindow : Form
         return p;
     }
 
+    private Task CheckUpdates(bool manual) => updater.CheckAsync(this, manual, text => { if (!IsDisposed) updateStatus.Text = text; }, () => { allowExit = true; Close(); });
     private TableLayoutPanel Grid() => new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 2, RowCount = 0, Padding = new Padding(0, 2, 4, 2), BackColor = DarkTheme.Surface }.Also(g => { g.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150)); g.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); });
     private static void AddRow(TableLayoutPanel grid, string label, Control control)
     {
@@ -796,6 +800,3 @@ internal sealed class DarkColorTable : ProfessionalColorTable
     public override Color ImageMarginGradientEnd => DarkTheme.Surface;
     public override Color ToolStripBorder => DarkTheme.Border;
 }
-
-
-

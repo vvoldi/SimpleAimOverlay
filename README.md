@@ -1,6 +1,6 @@
 # Simple Aim Overlay
 
-A lightweight, single-file Windows crosshair overlay. Configure its shape, color, outline, opacity, size, thickness, gap, monitor, and position; choose from 20 bundled crosshair images with previews; import custom crosshair images; keep multiple profiles; and toggle visibility with a hotkey or while holding a mouse button or key.
+A lightweight, single-file Windows crosshair overlay. Configure its shape, color, outline, opacity, size, thickness, gap, monitor, and position; browse and recolor 20 bundled crosshairs; draw and edit pixel-art crosshairs; import custom images; keep multiple profiles; and toggle visibility with a hotkey or while holding a mouse button or key. Closing the window can minimize the app to the system tray.
 
 The overlay is an independent, click-through desktop window. The public edition does not inject code into games or modify game processes. Visibility in fullscreen depends on Windows, the graphics driver, the game, and its fullscreen presentation mode.
 

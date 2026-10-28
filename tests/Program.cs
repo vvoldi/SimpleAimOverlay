@@ -21,6 +21,7 @@ using(var box=(Control)Activator.CreateInstance(number,[-2000,2000,0])!) {
     editor.Text="9999";number.GetMethod("Commit",Private)!.Invoke(box,null);Assert(editor.Text=="2000","Normalize even when clamped value unchanged");
     editor.Text="";number.GetMethod("Commit",Private)!.Invoke(box,null);Assert(editor.Text=="2000","Empty input restored on commit");
 }
+FeatureChecks.Run();
 RunNewChecks(assembly);
 RunRenderingChecks(assembly);
 var updater=assembly.GetType("SimpleAimOverlay.AppUpdater")!;
@@ -99,7 +100,7 @@ static void RunNewChecks(Assembly assembly) {
     if(Environment.GetEnvironmentVariable("SAO_RENDER_EDITOR")=="1") {
         editor.Show(); Application.DoEvents();
         using var screenshot=new System.Drawing.Bitmap(editor.Width,editor.Height);editor.DrawToBitmap(screenshot,new System.Drawing.Rectangle(0,0,editor.Width,editor.Height));screenshot.Save(Path.Combine(Path.GetTempPath(),"SimpleAimOverlay-editor-0111.png"));
-        editor.Close();
+        editor.DialogResult=DialogResult.OK; editor.Close();
     }
     Console.WriteLine("PASS: game matching, closed dropdown wheel, pencil continuity, symmetry, rectangle, fill, eraser, resize and undo.");
 }

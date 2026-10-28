@@ -8,8 +8,8 @@ using System.Windows.Forms;
 
 internal static class Program
 {
-    const string Product = "SimpleAimOverlay Test";
-    const string InstallDir = @"C:\Program Files\SimpleAimOverlay Test";
+    const string Product = "Simple Aim Overlay";
+    static readonly string InstallDir = Directory.Exists(@"C:\Program Files\SimpleAimOverlay Test") ? @"C:\Program Files\SimpleAimOverlay Test" : @"C:\Program Files\SimpleAimOverlay";
     const string AppExe = "SimpleAimOverlay.exe";
     const string CertThumb = "EA96448AEE620904B58AFD355ACC6657BF16828E";
     const int MOVEFILE_DELAY_UNTIL_REBOOT = 0x4;
@@ -32,7 +32,7 @@ internal static class Program
     static void Install(int? parent)
     {
         var result = parent.HasValue ? DialogResult.Yes : DarkMessage.Show(
-            "This is a self-signed Simple Aim Overlay 0.1.12 build.\n\n" +
+            "This is a self-signed Simple Aim Overlay 0.1.13 build.\n\n" +
             "Setup will add the SimpleAimOverlay test certificate to this PC's trusted certificate stores " +
             "and install the app in Program Files (required for UIAccess).\n\n" +
             "Only continue if you trust the package source. This build does not include a DXGI hook.\n\n" +
@@ -57,11 +57,12 @@ internal static class Program
         string uninstallerPath = Path.Combine(InstallDir, "Uninstall-" + Guid.NewGuid().ToString("N") + ".exe");
         string runningSetup = Environment.ProcessPath ?? throw new InvalidOperationException("Could not locate the setup executable.");
         File.WriteAllBytes(uninstallerPath, File.ReadAllBytes(runningSetup));
+        string oldShortcut=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms),"SimpleAimOverlay Test.lnk"); if(File.Exists(oldShortcut))File.Delete(oldShortcut);
         CreateShortcut(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms), Product + ".lnk"), Path.Combine(InstallDir, AppExe));
         using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\SimpleAimOverlayTest"))
         {
-            key.SetValue("DisplayName", Product + " (Self-signed)");
-            key.SetValue("DisplayVersion", "0.1.12");
+            key.SetValue("DisplayName", Product);
+            key.SetValue("DisplayVersion", "0.1.13");
             key.SetValue("Publisher", "SimpleAimOverlay contributors (local test certificate)");
             key.SetValue("InstallLocation", InstallDir);
             key.SetValue("DisplayIcon", Path.Combine(InstallDir, AppExe));

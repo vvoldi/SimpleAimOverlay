@@ -8,7 +8,8 @@ internal sealed class EditorViewport : UserControl
     private readonly Panel clip = new() { Dock = DockStyle.Fill, BackColor = DarkTheme.Card };
     private readonly DrawingCanvas canvas;
     private readonly Bar vertical, horizontal;
-    private int offsetX, offsetY, wheelRemainder;
+    private int offsetX, offsetY, wheelRemainder, zoomRemainder;
+    public event Action<int>? ZoomRequested;
     public EditorViewport(DrawingCanvas canvas)
     {
         this.canvas=canvas;BackColor=DarkTheme.Card;
@@ -19,7 +20,17 @@ internal sealed class EditorViewport : UserControl
     }
     private int Max(bool vertical)=>Math.Max(0,(vertical?canvas.Height-clip.Height:canvas.Width-clip.Width));
     private void UpdatePosition(){offsetX=Math.Clamp(offsetX,0,Max(false));offsetY=Math.Clamp(offsetY,0,Max(true));canvas.Location=new Point(-offsetX,-offsetY);vertical.Invalidate();horizontal.Invalidate();}
-    private void ScrollWheel(int delta){wheelRemainder+=delta;int steps=wheelRemainder/120;wheelRemainder%=120;if((ModifierKeys&Keys.Shift)!=0)offsetX-=steps*24;else offsetY-=steps*24;UpdatePosition();}
+    private void ScrollWheel(int delta){
+        if ((ModifierKeys & Keys.Control) != 0) { ZoomWheel(delta, clip.PointToClient(Cursor.Position)); return; }
+        wheelRemainder+=delta;int steps=wheelRemainder/120;wheelRemainder%=120;if((ModifierKeys&Keys.Shift)!=0)offsetX-=steps*24;else offsetY-=steps*24;UpdatePosition();}
+    internal void ZoomWheel(int delta, Point anchor) {
+        zoomRemainder += delta; int steps = zoomRemainder / 120; zoomRemainder %= 120;
+        if (steps == 0) return;
+        double pixelX = (offsetX + anchor.X) / (double)canvas.PixelSize, pixelY = (offsetY + anchor.Y) / (double)canvas.PixelSize;
+        ZoomRequested?.Invoke(steps);
+        offsetX = (int)Math.Round(pixelX * canvas.PixelSize - anchor.X); offsetY = (int)Math.Round(pixelY * canvas.PixelSize - anchor.Y);
+        UpdatePosition();
+    }
     private sealed class Bar : Control {
         readonly EditorViewport owner;readonly bool vertical;bool dragging;int grab;
         public Bar(EditorViewport owner,bool vertical){this.owner=owner;this.vertical=vertical;BackColor=DarkTheme.Card;SetStyle(ControlStyles.UserPaint|ControlStyles.OptimizedDoubleBuffer|ControlStyles.AllPaintingInWmPaint,true);}

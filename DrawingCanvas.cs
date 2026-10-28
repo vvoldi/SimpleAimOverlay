@@ -38,10 +38,10 @@ internal sealed class DrawingCanvas : Control
         e.Graphics.DrawImage(image,new Rectangle(0,0,image.Width*PixelSize,image.Height*PixelSize));
         if(PixelSize>=5){
             e.Graphics.PixelOffsetMode=PixelOffsetMode.None;
-            using var dark=new Pen(Color.FromArgb(220,10,14,20),2);
-            using var light=new Pen(Color.FromArgb(170,235,240,246),1);
-            for(int x=0;x<=image.Width;x++){int px=x*PixelSize;e.Graphics.DrawLine(dark,px,0,px,image.Height*PixelSize);e.Graphics.DrawLine(light,px,0,px,image.Height*PixelSize);}
-            for(int y=0;y<=image.Height;y++){int py=y*PixelSize;e.Graphics.DrawLine(dark,0,py,image.Width*PixelSize,py);e.Graphics.DrawLine(light,0,py,image.Width*PixelSize,py);}
+            using var grid=new Pen(Color.FromArgb(105,65,78,94),1);
+            using var major=new Pen(Color.FromArgb(120,105,120,136),1);
+            for(int x=0;x<=image.Width;x++)e.Graphics.DrawLine(x%8==0?major:grid,x*PixelSize,0,x*PixelSize,image.Height*PixelSize);
+            for(int y=0;y<=image.Height;y++)e.Graphics.DrawLine(y%8==0?major:grid,0,y*PixelSize,image.Width*PixelSize,y*PixelSize);
         }
         using var center=new Pen(Color.FromArgb(110,DarkTheme.Accent));e.Graphics.DrawLine(center,Width/2,0,Width/2,Height);e.Graphics.DrawLine(center,0,Height/2,Width,Height/2);
     }
@@ -51,9 +51,9 @@ internal sealed class DrawingCanvas : Control
         Focus();start=previous=Pixel(e.Location);
         if(Tool=="Eyedropper"&&e.Button==MouseButtons.Left){ColorPicked?.Invoke(image.GetPixel(start.X,start.Y));return;}
         eraseStroke=Eraser||e.Button==MouseButtons.Right;
-        StrokeStarted?.Invoke(new Bitmap(image));
+        StrokeStarted?.Invoke((Bitmap)image.Clone());
         if(Tool=="Fill"&&!eraseStroke){FloodFill(start);NotifyChanged();return;}
-        drawing=true;Capture=true;strokeBase?.Dispose();strokeBase=new Bitmap(image);RenderStroke(start);
+        drawing=true;Capture=true;strokeBase?.Dispose();strokeBase=(Bitmap)image.Clone();RenderStroke(start);
     }
     protected override void OnMouseMove(MouseEventArgs e) {
         base.OnMouseMove(e);Point p=Pixel(e.Location);PointerColorChanged?.Invoke(image.GetPixel(p.X,p.Y));

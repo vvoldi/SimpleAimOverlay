@@ -33,9 +33,11 @@ internal sealed class AimSettings
     public string Color { get; set; } = "#FF39D98A";
     public string OutlineColor { get; set; } = "#FF101820";
     public bool Outline { get; set; }
+    public float OutlineWidth { get; set; } = 1;
+    public int OutlineOpacity { get; set; } = 100;
     public int Size { get; set; } = 32;
     public int ImageScale { get; set; } = 200;
-    public int Thickness { get; set; } = 3;
+    public float Thickness { get; set; } = 3;
     public int Gap { get; set; } = 7;
     public int Opacity { get; set; } = 100;
     public int OffsetX { get; set; }
@@ -73,23 +75,26 @@ internal static class Store
     }
     public static void Save(StoreData data)
     {
-        try { Directory.CreateDirectory(Root); File.WriteAllText(FilePath, JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true })); } catch { }
+        try { Directory.CreateDirectory(Root); string pending=FilePath+".new"; File.WriteAllText(pending, JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true })); File.Move(pending,FilePath,true); } catch { }
     }
 }
 
 internal sealed class ControlWindow : Form
 {
     private const int WM_HOTKEY = 0x0312, HotkeyId = 0x51A1;
-    private readonly StoreData data = Store.Load();
+    private StoreData data = Store.Load();
     private readonly OverlayWindow overlay = new();
     private readonly DarkTabHost tabs = new();
-    private readonly DarkComboBox shape = new(), monitor = new(), hotkey = new(), holdKey = new();
-    private readonly DarkListBox images = new(), profiles = new();
+    private readonly DarkComboBox shape = new(), monitor = new();
+    private readonly KeyBindingButton hotkey = new(), holdKey = new();
+    private bool toggleWasDown;
+    private readonly DarkSlider outlineWidth = Slider(5, 100), outlineOpacity = Slider(0, 100);
+    private readonly DarkListBox images = new();
     private readonly DarkCheckBox outline = new(), visible = new(), startup = new(), hideWhileHeld = new(), closeToTray = new();
-    private readonly DarkSlider size = Slider(8, 180), imageScale = Slider(50, 800), thickness = Slider(1, 24), gap = Slider(0, 100), opacity = Slider(10, 100);
+    private readonly DarkSlider size = Slider(8, 180), imageScale = Slider(50, 800), thickness = Slider(10, 240), gap = Slider(0, 100), opacity = Slider(10, 100);
     private readonly DarkNumberBox offsetX = new(-2000, 2000), offsetY = new(-2000, 2000);
-    private readonly Button colorButton = new(), outlineButton = new();
-    private readonly Button toggleButton = new();
+    private readonly Button colorButton = new RoundedButton(), outlineButton = new RoundedButton();
+    private readonly Button toggleButton = new RoundedButton();
     private readonly Panel preview = new();
     private readonly Label status = new();
     private readonly NotifyIcon tray = new();
@@ -120,7 +125,7 @@ internal sealed class ControlWindow : Form
         data.Images.RemoveAll(x => BundledCrosshairs.Contains(x, StringComparer.OrdinalIgnoreCase));
         foreach (var profile in data.Profiles) if (profile.Aim.Shape == "Image" && BundledCrosshairs.Contains(Path.GetFileName(profile.Aim.ImagePath), StringComparer.OrdinalIgnoreCase)) profile.Aim.Shape = "Cross";
         if (data.Current.Shape == "Image" && BundledCrosshairs.Contains(Path.GetFileName(data.Current.ImagePath), StringComparer.OrdinalIgnoreCase)) data.Current.Shape = "Cross";
-        BuildLayout(); LoadCurrent(); initializing = false; Apply(); PopulateProfiles(); PopulateImages();
+        BuildLayout(); LoadCurrent(); initializing = false; Apply(); PopulateImages();
         tray.Icon = BrandIcon.Load(); tray.Text = "Simple Aim Overlay"; tray.Visible = true;
         var menu = new ContextMenuStrip { BackColor = DarkTheme.Surface, ForeColor = DarkTheme.Text, Renderer = new ToolStripProfessionalRenderer(new DarkColorTable()) };
         menu.Items.Add("Open", GlyphPainter.Create("aim", 16, DarkTheme.Accent), (_, _) => RestoreWindow()); menu.Items.Add("Show / hide", GlyphPainter.Create("visibility", 16), (_, _) => ToggleVisible()); menu.Items.Add("Exit", GlyphPainter.Create("delete", 16), (_, _) => { allowExit = true; Close(); }); tray.ContextMenuStrip = menu;
@@ -130,7 +135,7 @@ internal sealed class ControlWindow : Form
         Resize += (_, _) => { if (WindowState == FormWindowState.Minimized && data.MinimizeToTray) Hide(); };
         tray.DoubleClick += (_, _) => RestoreWindow();
         holdTimer.Tick += (_, _) => PollHoldKey();
-        Shown += async (_, _) => { overlay.Show(); BindHotkey(); holdTimer.Start(); if (data.LaunchWithGame) GameLauncher.StartWatcher(); if (Environment.GetCommandLineArgs().Contains("--game")) Hide(); await CheckUpdates(false); };
+        Shown += async (_, _) => { RoundedUi.Apply(this); overlay.Show(); BindHotkey(); holdTimer.Start(); if (data.LaunchWithGame) GameLauncher.StartWatcher(); if (Environment.GetCommandLineArgs().Contains("--game")) Hide(); await CheckUpdates(false); };
         FormClosing += (_, e) =>
         {
             if (!allowExit && e.CloseReason == CloseReason.UserClosing && data.MinimizeToTrayOnClose)
@@ -163,7 +168,7 @@ internal sealed class ControlWindow : Form
         heading.Controls.Add(new Label { Text = "Build a clean, readable crosshair", ForeColor = DarkTheme.Muted, AutoSize = true, Location = new Point(2, 38), BackColor = DarkTheme.Window });
         root.Controls.Add(heading, 0, 0); root.SetColumnSpan(heading, 2);
         tabs.Dock = DockStyle.Fill;
-        tabs.AddPage("Crosshair", "aim", MakeCrosshairTab()); tabs.AddPage("Editor", "edit", MakeLibraryTab()); tabs.AddPage("Profiles", "profiles", MakeProfilesTab()); tabs.AddPage("Settings", "settings", MakeSettingsTab());
+        tabs.AddPage("Crosshair", "aim", MakeCrosshairTab()); tabs.AddPage("Editor", "edit", MakeLibraryTab()); tabs.AddPage("Settings", "settings", MakeSettingsTab());
         root.Controls.Add(tabs, 0, 1);
         var right = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Padding = new Padding(18, 10, 0, 0), BackColor = DarkTheme.Window };
         right.RowStyles.Add(new RowStyle(SizeType.Absolute, 32)); right.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); right.RowStyles.Add(new RowStyle(SizeType.Absolute, 112));
@@ -182,10 +187,12 @@ internal sealed class ControlWindow : Form
         AddSliderRow(grid, "Opacity", opacity, s => s.Opacity, "opacity");
         AddSliderRow(grid, "Size", size, s => s.Size, "size");
         AddSliderRow(grid, "Image zoom", imageScale, s => s.ImageScale, "scale");
-        AddSliderRow(grid, "Thickness", thickness, s => s.Thickness, "thickness");
+        AddSliderRow(grid, "Thickness", thickness, s => (int)Math.Round(s.Thickness * 10), "thickness");
         AddSliderRow(grid, "Gap", gap, s => s.Gap, "gap");
         outline.Text = "Show outline"; AddRow(grid, "Outline", outline);
         outlineButton.Text = "Outline color"; outlineButton.ForeColor = DarkTheme.Text; outlineButton.FlatStyle = FlatStyle.Flat; outlineButton.FlatAppearance.BorderColor = DarkTheme.Border; outlineButton.Click += (_, _) => PickColor(true); AddRow(grid, "", outlineButton);
+        AddSliderRow(grid, "Outline width", outlineWidth, s => (int)(s.OutlineWidth * 10), "outlineWidth");
+        AddSliderRow(grid, "Outline opacity", outlineOpacity, s => s.OutlineOpacity, "opacity");
         var offsets = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, BackColor = DarkTheme.Surface };
         offsets.Controls.Add(new Label { Text = "X", AutoSize = true, Padding = new Padding(0, 7, 5, 0), ForeColor = DarkTheme.Muted, BackColor = DarkTheme.Surface }); offsets.Controls.Add(offsetX); offsets.Controls.Add(new Label { Text = "Y", AutoSize = true, Padding = new Padding(10, 7, 5, 0), ForeColor = DarkTheme.Muted, BackColor = DarkTheme.Surface }); offsets.Controls.Add(offsetY);
         AddRow(grid, "Center offset", offsets);
@@ -199,11 +206,13 @@ internal sealed class ControlWindow : Form
         var p = Page("Editor"); var layout = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 1, BackColor = DarkTheme.Surface };
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42)); layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48)); p.Controls.Add(layout);
         layout.Controls.Add(new Label { Text = "Your drawings. Create a crosshair or edit one you saved. Standard styles are in Crosshair.", ForeColor = DarkTheme.Muted, BackColor = DarkTheme.Surface, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
-        images.Dock = DockStyle.Fill; images.IntegralHeight = false; images.BackColor = DarkTheme.Card; images.ForeColor = DarkTheme.Text; images.BorderStyle = BorderStyle.None; images.DrawMode = DrawMode.OwnerDrawFixed; images.ItemHeight = 72; images.DrawItem += DrawCrosshairItem; layout.Controls.Add(images, 0, 1);
+        images.Dock = DockStyle.Fill; images.IntegralHeight = false; images.BackColor = DarkTheme.Card; images.ForeColor = DarkTheme.Text; images.BorderStyle = BorderStyle.None; images.DrawMode = DrawMode.OwnerDrawFixed; images.ItemHeight = 72; images.DrawItem += DrawCrosshairItem; images.ItemDoubleClick += (_, _) => EditImage(); layout.Controls.Add(images, 0, 1);
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight };
         buttons.BackColor = DarkTheme.Surface;
         var create = Button("New", DarkTheme.Accent, DarkTheme.Window); create.Click += (_, _) => CreateImage(); buttons.Controls.Add(create);
         var edit = Button("Edit", DarkTheme.SurfaceHover, DarkTheme.Text); edit.Click += (_, _) => EditImage(); buttons.Controls.Add(edit);
+        var import = Button("Import", DarkTheme.SurfaceHover, DarkTheme.Text); import.Click += (_, _) => ImportDrawing(); buttons.Controls.Add(import);
+        var export = Button("Export", DarkTheme.SurfaceHover, DarkTheme.Text); export.Click += (_, _) => ExportDrawing(); buttons.Controls.Add(export);
         var remove = Button("Delete", DarkTheme.SurfaceHover, DarkTheme.Text); remove.Click += (_, _) => RemoveImage(); buttons.Controls.Add(remove);
         layout.Controls.Add(buttons, 0, 2);
         images.SelectedIndexChanged += (_, _) =>
@@ -215,26 +224,14 @@ internal sealed class ControlWindow : Form
         };
         return p;
     }
-    private Panel MakeProfilesTab()
-    {
-        var p = Page("Profiles"); var layout = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 1, BackColor = DarkTheme.Surface };
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42)); layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48)); p.Controls.Add(layout);
-        layout.Controls.Add(new Label { Text = "Save crosshair presets and switch between them quickly.", ForeColor = DarkTheme.Muted, BackColor = DarkTheme.Surface, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
-        profiles.Dock = DockStyle.Fill; profiles.IntegralHeight = false; profiles.BackColor = DarkTheme.Card; profiles.ForeColor = DarkTheme.Text; profiles.BorderStyle = BorderStyle.None; profiles.DrawMode = DrawMode.OwnerDrawFixed; profiles.ItemHeight = 46; profiles.DrawItem += DrawProfileItem; layout.Controls.Add(profiles, 0, 1);
-        var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight };
-        buttons.BackColor = DarkTheme.Surface;
-        var save = Button("Save as…", DarkTheme.Accent, DarkTheme.Window); save.Click += (_, _) => SaveProfile(); buttons.Controls.Add(save);
-        var load = Button("Load", DarkTheme.SurfaceHover, DarkTheme.Text); load.Click += (_, _) => LoadProfile(); buttons.Controls.Add(load);
-        var delete = Button("Delete", DarkTheme.SurfaceHover, DarkTheme.Text); delete.Click += (_, _) => DeleteProfile(); buttons.Controls.Add(delete); layout.Controls.Add(buttons, 0, 2);
-        return p;
-    }
+
     private Panel MakeSettingsTab()
     {
         var p = Page("Settings"); var grid = Grid(); p.Controls.Add(grid);
         visible.Text = "Show crosshair"; visible.AutoSize = true; AddRow(grid, "Visibility", visible);
-        hotkey.DropDownStyle = ComboBoxStyle.DropDownList; hotkey.Items.AddRange(["F6", "F7", "F8", "F9", "F10", "F11", "F12", "Insert", "Pause"]); AddRow(grid, "Toggle hotkey", hotkey);
+        AddRow(grid, "Toggle hotkey", hotkey);
         hideWhileHeld.Text = "Hide while key is held"; hideWhileHeld.AutoSize = true; AddRow(grid, "Hold to hide", hideWhileHeld);
-        holdKey.DropDownStyle = ComboBoxStyle.DropDownList; holdKey.Items.AddRange(["Right Mouse", "Left Mouse", "Middle Mouse", "Mouse X1", "Mouse X2", "Space", "Shift", "Ctrl", "Alt", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "Insert", "Pause"]); AddRow(grid, "Hold key", holdKey);
+        AddRow(grid, "Hold key", holdKey);
         startup.Text = "Launch when Windows starts"; startup.AutoSize = true; AddRow(grid, "Startup", startup);
         closeToTray.Text = "Minimize to tray when closed"; closeToTray.AutoSize = true; AddRow(grid, "Close button", closeToTray);
         minimizeToTray.Text = "Minimize to tray with the − button"; AddRow(grid, "Minimize button", minimizeToTray);
@@ -248,12 +245,17 @@ internal sealed class ControlWindow : Form
         gameExecutable.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { SaveGameStartup(); e.SuppressKeyPress = true; } };
         launchWithGame.CheckedChanged += (_, _) => SaveGameStartup();
         var checkUpdates = Button("Check for updates", DarkTheme.SurfaceHover, DarkTheme.Text); checkUpdates.Click += async (_, _) => await CheckUpdates(true); AddRow(grid, "Updates", checkUpdates); AddRow(grid, "Version " + AppUpdater.CurrentVersion.ToString(3), updateStatus);
+        var transfer = new FlowLayoutPanel { Dock=DockStyle.Fill };
+        var exportConfig=Button("Export",DarkTheme.SurfaceHover,DarkTheme.Text);exportConfig.Click+=(_,_)=>TransferConfig(false);transfer.Controls.Add(exportConfig);
+        var importConfig=Button("Import",DarkTheme.SurfaceHover,DarkTheme.Text);importConfig.Click+=(_,_)=>TransferConfig(true);transfer.Controls.Add(importConfig);
+        AddRow(grid,"Configuration",transfer);
+        var logs=Button("Open update logs",DarkTheme.SurfaceHover,DarkTheme.Text);logs.Click+=(_,_)=>{string folder=Path.Combine(Store.Root,"logs");Directory.CreateDirectory(folder);System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(folder){UseShellExecute=true});};AddRow(grid,"Diagnostics",logs);
         var text = new Label { Text = "UIAccess overlay. Fullscreen support depends on the game and its graphics mode.", Dock = DockStyle.Fill, ForeColor = DarkTheme.Muted, BackColor = DarkTheme.Surface, AutoSize = false };
         grid.Controls.Add(text, 0, grid.RowCount); grid.SetColumnSpan(text, 2); grid.RowCount++;
         visible.CheckedChanged += (_, _) => { if (!initializing) ToggleVisible(visible.Checked); };
-        hotkey.SelectedIndexChanged += (_, _) => Apply();
+        hotkey.BindingChanged += (_, _) => Apply();
         hideWhileHeld.CheckedChanged += (_, _) => { if (!initializing) Apply(); };
-        holdKey.SelectedIndexChanged += (_, _) => { if (!initializing) Apply(); };
+        holdKey.BindingChanged += (_, _) => { if (!initializing) Apply(); };
         startup.CheckedChanged += (_, _) => SetStartup();
         closeToTray.CheckedChanged += (_, _) => { if (initializing) return; data.MinimizeToTrayOnClose = closeToTray.Checked; Store.Save(data); };
         return p;
@@ -280,13 +282,15 @@ internal sealed class ControlWindow : Form
     {
         var host = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 }; host.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); host.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 48));
         var value = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, ForeColor = DarkTheme.Muted, BackColor = DarkTheme.Surface }; host.BackColor = DarkTheme.Surface; bar.BackColor = DarkTheme.Surface; host.Controls.Add(bar, 0, 0); host.Controls.Add(value, 1, 0);
-        value.Font = AppFonts.Semibold(9); bar.ValueChanged += (_, _) => { value.Text = key is "opacity" or "scale" ? $"{bar.Value}%" : bar.Value.ToString(); if (!initializing) Apply(); };
-        AddRow(g, label, host);
+        string ValueText() => key is "opacity" or "scale" ? $"{bar.Value}%" : key is "thickness" or "outlineWidth" ? (bar.Value / 10f).ToString("0.0") : bar.Value.ToString();
+        value.Text=ValueText();
+        value.Font = AppFonts.Semibold(9); bar.ValueChanged += (_, _) => { value.Text=ValueText(); if (!initializing) Apply(); };
+        AddRow(g, label, host); host.BackColor = DarkTheme.Surface; host.Margin = Padding.Empty; bar.Margin = Padding.Empty; value.Margin = Padding.Empty;
     }
     private static Button Button(string label, Color back, Color fore)
     {
         bool primary = back == DarkTheme.Accent;
-        var button = new Button { Text = label, BackColor = primary ? DarkTheme.Accent : DarkTheme.SurfaceHover, ForeColor = primary ? DarkTheme.Window : fore, FlatStyle = FlatStyle.Flat, AutoSize = true, Height = 38, Padding = new Padding(12, 4, 12, 4), Margin = new Padding(0, 4, 8, 4), Cursor = Cursors.Hand, Font = AppFonts.Semibold(9) };
+        var button = new RoundedButton { Text = label, BackColor = primary ? DarkTheme.Accent : DarkTheme.SurfaceHover, ForeColor = primary ? DarkTheme.Window : fore, FlatStyle = FlatStyle.Flat, AutoSize = true, Height = 38, Padding = new Padding(12, 4, 12, 4), Margin = new Padding(0, 4, 8, 4), Cursor = Cursors.Hand, Font = AppFonts.Semibold(9) };
         button.FlatAppearance.BorderSize = primary ? 0 : 1; button.FlatAppearance.BorderColor = DarkTheme.Border; button.FlatAppearance.MouseOverBackColor = primary ? DarkTheme.AccentHover : DarkTheme.Border;
         string? glyph = label.StartsWith("Refresh", StringComparison.OrdinalIgnoreCase) ? "refresh" : label.StartsWith("New", StringComparison.OrdinalIgnoreCase) ? "image" : label.StartsWith("Edit", StringComparison.OrdinalIgnoreCase) ? "edit" : label.StartsWith("Import", StringComparison.OrdinalIgnoreCase) ? "import" : label.StartsWith("Delete", StringComparison.OrdinalIgnoreCase) ? "delete" : label.StartsWith("Save", StringComparison.OrdinalIgnoreCase) ? "save" : label.StartsWith("Load", StringComparison.OrdinalIgnoreCase) ? "load" : null;
         if (glyph != null) { button.Image = GlyphPainter.Create(glyph, 17, primary ? DarkTheme.Window : DarkTheme.Text); button.ImageAlign = ContentAlignment.MiddleLeft; button.TextImageRelation = TextImageRelation.ImageBeforeText; }
@@ -299,11 +303,12 @@ internal sealed class ControlWindow : Form
         shape.SelectedItem = Shapes.Contains(s.Shape) ? s.Shape : "Cross";
         if (s.Shape == "Image") s.TintImage = !data.OriginalColorImages.Contains(Path.GetFileName(s.ImagePath), StringComparer.OrdinalIgnoreCase);
         SetColor(s.Color, false); SetColor(s.OutlineColor, true);
-        size.Value = Math.Clamp(s.Size, size.Minimum, size.Maximum); imageScale.Value = Math.Clamp(s.ImageScale, imageScale.Minimum, imageScale.Maximum); imageScale.Enabled = s.Shape == "Image"; thickness.Value = Math.Clamp(s.Thickness, thickness.Minimum, thickness.Maximum); gap.Value = Math.Clamp(s.Gap, gap.Minimum, gap.Maximum); opacity.Value = Math.Clamp(s.Opacity, opacity.Minimum, opacity.Maximum);
+        size.Value = Math.Clamp(s.Size, size.Minimum, size.Maximum); imageScale.Value = Math.Clamp(s.ImageScale, imageScale.Minimum, imageScale.Maximum); imageScale.Enabled = s.Shape == "Image"; thickness.Value = Math.Clamp((int)Math.Round(s.Thickness * 10), thickness.Minimum, thickness.Maximum); gap.Value = Math.Clamp(s.Gap, gap.Minimum, gap.Maximum); opacity.Value = Math.Clamp(s.Opacity, opacity.Minimum, opacity.Maximum);
         outline.Checked = s.Outline; visible.Checked = s.Visible; offsetX.Value = Math.Clamp(s.OffsetX, (int)offsetX.Minimum, (int)offsetX.Maximum); offsetY.Value = Math.Clamp(s.OffsetY, (int)offsetY.Minimum, (int)offsetY.Maximum);
         desiredVisible = s.Visible;
-        hotkey.SelectedItem = hotkey.Items.Contains(s.Hotkey) ? s.Hotkey : "F8";
-        hideWhileHeld.Checked = s.HideWhileHeld; holdKey.SelectedItem = holdKey.Items.Contains(NormalizeHoldKey(s.HoldKey)) ? NormalizeHoldKey(s.HoldKey) : "Right Mouse";
+        hotkey.Binding = s.Hotkey;
+        hideWhileHeld.Checked = s.HideWhileHeld; holdKey.Binding = NormalizeHoldKey(s.HoldKey);
+        outlineWidth.Value = Math.Clamp((int)(s.OutlineWidth * 10),5,100); outlineOpacity.Value = Math.Clamp(s.OutlineOpacity,0,100);
         startup.Checked = s.StartWithWindows;
         closeToTray.Checked = data.MinimizeToTrayOnClose; minimizeToTray.Checked = data.MinimizeToTray; launchWithGame.Checked = data.LaunchWithGame; gameExecutable.Text = data.GameExecutable;
         PopulateMonitors();
@@ -316,11 +321,7 @@ internal sealed class ControlWindow : Form
         if (i < 0) i = Array.FindIndex(Screen.AllScreens, x => x.Primary);
         if (i >= 0 && i < monitor.Items.Count) monitor.SelectedIndex = i;
     }
-    private void PopulateProfiles()
-    {
-        if (data.Profiles.Count == 0) data.Profiles.Add(new Profile());
-        profiles.Items.Clear(); foreach (var x in data.Profiles) profiles.Items.Add(x.Name);
-    }
+
     private void PopulateImages()
     {
         string folder = Path.Combine(Store.Root, "crosshairs"); Directory.CreateDirectory(folder);
@@ -352,29 +353,21 @@ internal sealed class ControlWindow : Form
         TextRenderer.DrawText(e.Graphics, Path.GetFileNameWithoutExtension(name), e.Font ?? SystemFonts.MessageBoxFont, new Point(imageBox.Right + 10, e.Bounds.Top + 25), e.ForeColor, TextFormatFlags.EndEllipsis | TextFormatFlags.VerticalCenter);
         e.DrawFocusRectangle();
     }
-    private void DrawProfileItem(object? sender, DrawItemEventArgs e)
-    {
-        if (e.Index < 0 || e.Index >= profiles.Items.Count) return;
-        bool selected = (e.State & DrawItemState.Selected) != 0;
-        using (var background = new SolidBrush(selected ? DarkTheme.SurfaceHover : DarkTheme.Card)) e.Graphics.FillRectangle(background, e.Bounds);
-        using var icon = GlyphPainter.Create("profiles", 18, selected ? DarkTheme.Accent : DarkTheme.Muted);
-        e.Graphics.DrawImage(icon, e.Bounds.Left + 14, e.Bounds.Top + (e.Bounds.Height - icon.Height) / 2);
-        TextRenderer.DrawText(e.Graphics, profiles.Items[e.Index]?.ToString() ?? string.Empty, profiles.Font, new Rectangle(e.Bounds.Left + 44, e.Bounds.Top, e.Bounds.Width - 54, e.Bounds.Height), DarkTheme.Text, TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
-        e.DrawFocusRectangle();
-    }
+
     private void Apply()
     {
         if (initializing) return;
         var s = data.Current;
         s.Shape = shape.SelectedItem?.ToString() ?? "Cross"; s.Color = ColorTranslator.ToHtml(aimColor); s.OutlineColor = ColorTranslator.ToHtml(borderColor);
-        s.Outline = outline.Checked; s.Size = size.Value; s.ImageScale = imageScale.Value; s.Thickness = thickness.Value; s.Gap = gap.Value; s.Opacity = opacity.Value;
+        s.Outline = outline.Checked; s.Size = size.Value; s.ImageScale = imageScale.Value; s.Thickness = thickness.Value / 10f; s.Gap = gap.Value; s.Opacity = opacity.Value;
         s.OffsetX = (int)offsetX.Value; s.OffsetY = (int)offsetY.Value; desiredVisible = visible.Checked; s.Visible = desiredVisible;
-        s.HideWhileHeld = hideWhileHeld.Checked; s.HoldKey = holdKey.SelectedItem?.ToString() ?? "Right Mouse";
+        s.HideWhileHeld = hideWhileHeld.Checked; s.HoldKey = holdKey.Binding;
+        s.OutlineWidth = outlineWidth.Value / 10f; s.OutlineOpacity = outlineOpacity.Value;
         toggleButton.Text = s.Visible ? "Crosshair: ON" : "Crosshair: OFF";
         toggleButton.BackColor = s.Visible ? DarkTheme.Accent : DarkTheme.SurfaceHover;
-        images.Invalidate(); colorButton.BackColor = aimColor; outlineButton.BackColor = borderColor;
+        images.Invalidate(); RefreshColorSwatches();
         if (monitor.SelectedItem is MonitorItem mi) s.Monitor = mi.Screen.DeviceName;
-        s.Hotkey = hotkey.SelectedItem?.ToString() ?? "F8";
+        s.Hotkey = hotkey.Binding;
         RefreshRuntimeVisibility(); preview.Invalidate(); Store.Save(data); BindHotkey();
     }
     private Screen SelectedScreen() => monitor.SelectedItem is MonitorItem mi ? mi.Screen : Screen.PrimaryScreen ?? Screen.AllScreens[0];
@@ -382,13 +375,13 @@ internal sealed class ControlWindow : Form
     {
         using var d = new DarkColorPicker { Color = isOutline ? borderColor : aimColor, FullOpen = true };
         if (d.ShowDialog(this) != DialogResult.OK) return;
-        if (isOutline) { borderColor = d.Color; outlineButton.BackColor = d.Color; } else { aimColor = d.Color; colorButton.BackColor = d.Color; images.Invalidate(); preview.Invalidate(); }
+        if (isOutline) { borderColor = d.Color;  } else { aimColor = d.Color;  images.Invalidate(); preview.Invalidate(); }
         Apply();
     }
     private void SetColor(string value, bool isOutline)
     {
         Color c; try { c = ColorTranslator.FromHtml(value); } catch { c = isOutline ? Color.FromArgb(16, 24, 32) : Color.LimeGreen; }
-        if (isOutline) { borderColor = c; outlineButton.BackColor = c; } else { aimColor = c; colorButton.BackColor = c; }
+        if (isOutline) { borderColor = c;  } else { aimColor = c;  }
     }
     private void ToggleVisible() => ToggleVisible(!data.Current.Visible);
     private void ToggleVisible(bool value)
@@ -418,17 +411,20 @@ internal sealed class ControlWindow : Form
     {
         if (!IsHandleCreated) return;
         UnregisterHotKey(Handle, HotkeyId);
-        string keyName = data.Current.Hotkey;
-        if (Enum.TryParse<Keys>(keyName, out var key) && !RegisterHotKey(Handle, HotkeyId, 0, (uint)key)) status.Text = $"Could not register {keyName}: the key is already in use.";
+        toggleWasDown = KeyBindingButton.IsDown(data.Current.Hotkey);
     }
     private void PollHoldKey()
     {
-        if (trayInteracting || tray.ContextMenuStrip?.Visible == true) return;
-        bool pressed = hideWhileHeld.Checked && desiredVisible && (GetAsyncKeyState(HoldKeyCode(holdKey.SelectedItem?.ToString() ?? "Right Mouse")) & 0x8000) != 0;
+        bool toggleDown = KeyBindingButton.IsDown(data.Current.Hotkey);
+        if (trayInteracting || tray.ContextMenuStrip?.Visible == true || OwnedForms.Any(f=>f.Visible) || (ContainsFocus && GetFocusedControl(this) is TextBoxBase)) { toggleWasDown=toggleDown; return; }
+        if(toggleDown&&!toggleWasDown)ToggleVisible();
+        toggleWasDown=toggleDown;
+        bool pressed = hideWhileHeld.Checked && desiredVisible && KeyBindingButton.IsDown(holdKey.Binding);
         if (pressed == holdDown) return;
         holdDown = pressed;
         RefreshRuntimeVisibility();
     }
+    private static Control GetFocusedControl(Control root) => root.Controls.Cast<Control>().FirstOrDefault(c=>c.ContainsFocus) is Control child ? GetFocusedControl(child) : root;
     private static string NormalizeHoldKey(string key) => key switch
     {
         "ПКМ" => "Right Mouse", "ЛКМ" => "Left Mouse", "Середня кнопка" => "Middle Mouse", "Бічна кнопка X1" => "Mouse X1", "Бічна кнопка X2" => "Mouse X2", _ => key
@@ -464,6 +460,45 @@ internal sealed class ControlWindow : Form
         string p = Path.Combine(Store.Root, "crosshairs", name); try { if (File.Exists(p)) File.Delete(p); } catch { }
         data.Images.Remove(name); data.OriginalColorImages.Remove(name); if (data.Current.ImagePath == p) { data.Current.ImagePath = ""; shape.SelectedItem = "Cross"; } PopulateImages(); Apply();
     }
+    private void RefreshColorSwatches()
+    {
+        foreach(var (button,color) in new[]{(colorButton,aimColor),(outlineButton,borderColor)}) {
+            var old=button.Image;var swatch=new Bitmap(20,20);using(var g=Graphics.FromImage(swatch)){using var b=new SolidBrush(color);g.FillRectangle(b,2,2,16,16);}
+            button.Image=swatch;old?.Dispose();button.BackColor=DarkTheme.Input;button.ForeColor=DarkTheme.Text;button.TextImageRelation=TextImageRelation.ImageBeforeText;button.ImageAlign=ContentAlignment.MiddleLeft;button.TextAlign=ContentAlignment.MiddleLeft;
+        }
+    }
+    private void ImportDrawing() {
+        using var dialog=new OpenFileDialog{Filter="Crosshair drawing|*.aim;*.png",Title="Import drawing"};
+        if(dialog.ShowDialog(this)!=DialogResult.OK)return;
+        try {
+            if(new FileInfo(dialog.FileName).Length>12_000_000)throw new InvalidDataException("Drawing is too large.");
+            var drawing=Path.GetExtension(dialog.FileName).Equals(".png",StringComparison.OrdinalIgnoreCase)?ConfigurationTransfer.ReadDrawing(dialog.FileName,true):JsonSerializer.Deserialize<ConfigurationTransfer.Drawing>(File.ReadAllText(dialog.FileName))??throw new InvalidDataException("Invalid drawing.");
+            string name=ConfigurationTransfer.InstallDrawing(drawing);data.Images.Add(name);if(!drawing.Tint)data.OriginalColorImages.Add(name);
+            PopulateImages();images.SelectedItem=name;Apply();
+        }catch(Exception ex){DarkMessage.Show(this,ex.Message,"Import failed");}
+    }
+    private void ExportDrawing() {
+        if(images.SelectedItem is not string name)return;
+        using var dialog=new SaveFileDialog{Filter="Shareable crosshair|*.aim|PNG image|*.png",FileName=Path.GetFileNameWithoutExtension(name),DefaultExt="aim"};
+        if(dialog.ShowDialog(this)!=DialogResult.OK)return;
+        try {
+            var drawing=ConfigurationTransfer.ReadDrawing(Path.Combine(Store.Root,"crosshairs",name),!data.OriginalColorImages.Contains(name));
+            if(Path.GetExtension(dialog.FileName).Equals(".png",StringComparison.OrdinalIgnoreCase)){using var image=ConfigurationTransfer.Decode(drawing);image.Save(dialog.FileName,ImageFormat.Png);}
+            else File.WriteAllText(dialog.FileName,JsonSerializer.Serialize(drawing));
+        }catch(Exception ex){DarkMessage.Show(this,ex.Message,"Export failed");}
+    }
+    private void TransferConfig(bool import) {
+        using FileDialog dialog=import?new OpenFileDialog():new SaveFileDialog{FileName="SimpleAimOverlay.aimconfig"};
+        dialog.Filter="Aim Overlay configuration|*.aimconfig";dialog.DefaultExt="aimconfig";
+        if(dialog.ShowDialog(this)!=DialogResult.OK)return;
+        try{
+            if(!import){ConfigurationTransfer.Export(dialog.FileName,data);return;}
+            var incoming=ConfigurationTransfer.Import(dialog.FileName);
+            ConfigurationTransfer.Backup();
+            incoming.Current.StartWithWindows=data.Current.StartWithWindows;incoming.LaunchWithGame=data.LaunchWithGame;incoming.GameExecutable=data.GameExecutable;
+            data=incoming;initializing=true;LoadCurrent();PopulateImages();initializing=false;Apply();
+        }catch(Exception ex){initializing=false;DarkMessage.Show(this,ex.Message,"Configuration");}
+    }
     private void CreateImage() => OpenPixelEditor(null, "New crosshair");
     private void EditImage()
     {
@@ -475,7 +510,7 @@ internal sealed class ControlWindow : Form
         using var editor = new PixelCrosshairEditor(path, aimColor) { TintForOverlay = path == null || !data.OriginalColorImages.Contains(Path.GetFileName(path), StringComparer.OrdinalIgnoreCase) };
         if (editor.ShowDialog(this) != DialogResult.OK || editor.ResultImage == null) return;
         string folder = Path.Combine(Store.Root, "crosshairs"); Directory.CreateDirectory(folder);
-        string? chosenName = DarkPrompt.Show(this, "Save crosshair", "Name", title); if (string.IsNullOrWhiteSpace(chosenName)) { editor.ResultImage.Dispose(); return; }
+        string chosenName = editor.DrawingName;
         string safe = string.Concat(chosenName.Select(ch => Path.GetInvalidFileNameChars().Contains(ch) ? '-' : ch));
         string name = $"{safe}-edit-{DateTime.Now:yyyyMMdd-HHmmss}.png";
         string destination = Path.Combine(folder, name);
@@ -486,24 +521,9 @@ internal sealed class ControlWindow : Form
         else if (!data.OriginalColorImages.Contains(name, StringComparer.OrdinalIgnoreCase)) data.OriginalColorImages.Add(name);
         PopulateImages(); images.SelectedItem = name; shape.SelectedItem = "Image"; imageScale.Enabled = true; Apply();
     }
-    private void SaveProfile()
-    {
-        string? response = DarkPrompt.Show(this, "Save profile", "Profile name", "My crosshair"); if (string.IsNullOrWhiteSpace(response)) return;
-        string name = response.Trim();
-        var existing = data.Profiles.FirstOrDefault(x => x.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
-        if (existing == null) data.Profiles.Add(new Profile { Name = name, Aim = Copy(data.Current) }); else existing.Aim = Copy(data.Current);
-        PopulateProfiles(); profiles.SelectedItem = name; Store.Save(data);
-    }
-    private void LoadProfile()
-    {
-        if (profiles.SelectedItem is not string name) return; var profile = data.Profiles.FirstOrDefault(x => x.Name == name); if (profile == null) return;
-        data.Current = Copy(profile.Aim); initializing = true; LoadCurrent(); initializing = false; Apply();
-    }
-    private void DeleteProfile()
-    {
-        if (profiles.SelectedItem is not string name || data.Profiles.Count <= 1) return;
-        data.Profiles.RemoveAll(x => x.Name == name); PopulateProfiles(); Store.Save(data);
-    }
+
+
+
     private static AimSettings Copy(AimSettings x) => JsonSerializer.Deserialize<AimSettings>(JsonSerializer.Serialize(x)) ?? new AimSettings();
     private void RestoreWindow() { Show(); WindowState = FormWindowState.Normal; Activate(); }
 
@@ -642,9 +662,23 @@ internal static class AimRenderer
 
     public static void Draw(Graphics g, Rectangle bounds, AimSettings s, Color color, Color outline, bool preview)
     {
+        if(s.Shape=="Image" || Math.Abs(s.Thickness-MathF.Round(s.Thickness))<.001f){DrawCore(g,bounds,s,color,outline,preview);return;}
+        float scale=preview?Math.Min(bounds.Width,bounds.Height)/230f:1;
+        // Render just the crosshair at 10×, so every 0.1px step has distinct coverage.
+        int side=2*(int)Math.Ceiling((s.Size/2f+s.Gap+s.Thickness+s.OutlineWidth+4)*scale);
+        side=Math.Clamp(side,8,1024);
+        using var high=new Bitmap(side*10,side*10,PixelFormat.Format32bppPArgb);
+        using(var graphics=Graphics.FromImage(high))DrawCore(graphics,new Rectangle(0,0,high.Width,high.Height),s,color,outline,false,scale*10,true);
+        var state=g.Save();
+        try {g.InterpolationMode=InterpolationMode.HighQualityBicubic;g.PixelOffsetMode=PixelOffsetMode.Half;
+            g.DrawImage(high,new RectangleF(bounds.Width/2f+s.OffsetX*scale-side/2f,bounds.Height/2f+s.OffsetY*scale-side/2f,side,side));
+        }finally{g.Restore(state);}
+    }
+    private static void DrawCore(Graphics g, Rectangle bounds, AimSettings s, Color color, Color outline, bool preview, float? explicitScale=null, bool ignoreOffset=false)
+    {
         g.SmoothingMode = SmoothingMode.AntiAlias; g.PixelOffsetMode = PixelOffsetMode.HighQuality;
-        float scale = preview ? Math.Min(bounds.Width, bounds.Height) / 230f : 1f;
-        float cx = bounds.Width / 2f + s.OffsetX * scale, cy = bounds.Height / 2f + s.OffsetY * scale;
+        float scale = explicitScale ?? (preview ? Math.Min(bounds.Width, bounds.Height) / 230f : 1f);
+        float cx = bounds.Width / 2f + (ignoreOffset?0:s.OffsetX * scale), cy = bounds.Height / 2f + (ignoreOffset?0:s.OffsetY * scale);
         float arm = s.Size * scale / 2f, gap = s.Gap * scale, width = s.Thickness * scale;
         // Gap moves complete arms away from the center without reversing endpoints.
         float reach = arm + gap;
@@ -654,7 +688,7 @@ internal static class AimRenderer
         }
         int alpha = (int)Math.Clamp(color.A * s.Opacity / 100f, 0, 255);
         using var main = new Pen(Color.FromArgb(alpha, color), width) { StartCap = LineCap.Round, EndCap = LineCap.Round };
-        using var edge = new Pen(Color.FromArgb(alpha, outline), width + Math.Max(2, width * .8f)) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+        using var edge = new Pen(Color.FromArgb((int)(alpha * Math.Clamp(s.OutlineOpacity,0,100) / 100f), outline), width + 2 * Math.Clamp(s.OutlineWidth, .5f, 10) * scale) { StartCap = LineCap.Round, EndCap = LineCap.Round };
         using var fill = new SolidBrush(Color.FromArgb(alpha, color));
         void Line(float a, float b, float c, float d) { if (s.Thickness == 1) { a = MathF.Round(a); b = MathF.Round(b); c = MathF.Round(c); d = MathF.Round(d); } if (s.Outline) g.DrawLine(edge, a, b, c, d); g.DrawLine(main, a, b, c, d); }
         if (s.Shape == "Image" && File.Exists(s.ImagePath))
@@ -697,7 +731,7 @@ internal static class AimRenderer
                 {
                     if (s.Outline)
                     {
-                        int outlineWidth = Math.Max(1, (int)Math.Round(scale));
+                        int outlineWidth = Math.Max(1, (int)Math.Round(Math.Clamp(s.OutlineWidth,.5f,10)*scale));
                         using var clip = new Region(new Rectangle(target.X - outlineWidth, target.Y - outlineWidth, target.Width + outlineWidth * 2, target.Height + outlineWidth * 2));
                         if (gapPixels > 0) clip.Exclude(new RectangleF(cx - gapPixels / 2f, cy - gapPixels / 2f, gapPixels, gapPixels));
                         g.SetClip(clip, CombineMode.Intersect);
@@ -706,7 +740,7 @@ internal static class AimRenderer
                         {
                             if (dx * dx + dy * dy > outlineWidth * outlineWidth || (dx == 0 && dy == 0)) continue;
                             var edgeRect = new Rectangle(target.X + dx, target.Y + dy, target.Width, target.Height);
-                            DrawCrosshairImage(g, rendered, new Rectangle(0, 0, imageWidth, imageHeight), edgeRect, outline, imageAlpha, true);
+                            DrawCrosshairImage(g, rendered, new Rectangle(0, 0, imageWidth, imageHeight), edgeRect, outline, imageAlpha * Math.Clamp(s.OutlineOpacity,0,100) / 100, true);
                         }
                     }
                     if (gapPixels > 0)
@@ -720,7 +754,7 @@ internal static class AimRenderer
             }
             catch { }
         }
-        if (s.Shape == "Dot") { float d = Math.Max(2, width * 1.5f); g.FillEllipse(fill, cx - d / 2, cy - d / 2, d, d); return; }
+        if (s.Shape == "Dot") { float d = Math.Max(2, width * 1.5f); if(s.Outline){using var b=new SolidBrush(edge.Color);float extra=2*s.OutlineWidth*scale;g.FillEllipse(b,cx-(d+extra)/2,cy-(d+extra)/2,d+extra,d+extra);} g.FillEllipse(fill, cx - d / 2, cy - d / 2, d, d); return; }
         if (s.Shape is "Circle" or "Square") { float d = arm * 2; var r = new RectangleF(cx - d / 2, cy - d / 2, d, d); if (s.Shape == "Circle") { if (s.Outline) g.DrawEllipse(edge, r); g.DrawEllipse(main, r); } else { if (s.Outline) g.DrawRectangle(edge, r.X, r.Y, r.Width, r.Height); g.DrawRectangle(main, r.X, r.Y, r.Width, r.Height); } return; }
         if (s.Shape is "Cross" or "Cross + Dot" or "T-shape" or "Predator") { Line(cx - reach, cy, cx - gap, cy); Line(cx + gap, cy, cx + reach, cy); if (s.Shape != "Predator") Line(cx, cy - reach, cx, cy - gap); if (s.Shape != "T-shape") Line(cx, cy + gap, cx, cy + reach); }
         else if (s.Shape == "Diagonal") { Line(cx - reach, cy - reach, cx - gap, cy - gap); Line(cx + gap, cy + gap, cx + reach, cy + reach); Line(cx + reach, cy - reach, cx + gap, cy - gap); Line(cx - gap, cy + gap, cx - reach, cy + reach); }

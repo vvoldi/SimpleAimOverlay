@@ -14,7 +14,7 @@ internal sealed class PixelCrosshairEditor : Form
     private readonly DarkNumberBox alpha = new(0, 255, 255) { Width = 78, Height = 30 };
     private readonly Label zoomValue = new() { AutoSize = true, Text = "10×", ForeColor = DarkTheme.Muted, Padding = new Padding(2, 8, 8, 0) };
     private readonly Label pixelValue = new() { AutoSize = true, Text = "RGBA —", ForeColor = DarkTheme.Muted, Padding = new Padding(8, 8, 4, 0) };
-    private readonly Button penColor = new() { Text = "Pen color", AutoSize = true, Height = 36, FlatStyle = FlatStyle.Flat, Padding = new Padding(10, 3, 10, 3), Cursor = Cursors.Hand };
+    private readonly Button penColor = new RoundedButton() { Text = "Pen color", AutoSize = true, Height = 36, FlatStyle = FlatStyle.Flat, Padding = new Padding(10, 3, 10, 3), Cursor = Cursors.Hand };
     private readonly DarkCheckBox eraser = new() { Text = "Eraser", AutoSize = false, Width = 100, Height = 36, ForeColor = DarkTheme.Text, BackColor = DarkTheme.Surface, Padding = new Padding(8, 9, 8, 0) };
     private readonly DarkCheckBox tintToAim = new() { Text = "Use crosshair color", AutoSize = false, Width = 180, Height = 36, Checked = true, ForeColor = DarkTheme.Text, BackColor = DarkTheme.Surface, Padding = new Padding(6, 9, 6, 0) };
     private readonly bool resizableCanvas;
@@ -22,9 +22,12 @@ internal sealed class PixelCrosshairEditor : Form
     private readonly DarkComboBox dimensions = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 96 };
     private Color initialColor;
     private bool syncingDimensions;
+    private readonly Bitmap originalImage;
+    private bool originalTint = true;
+    public string DrawingName { get; private set; } = "My crosshair";
 
     public Bitmap? ResultImage { get; private set; }
-    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)] public bool TintForOverlay { get => tintToAim.Checked; set => tintToAim.Checked = value; }
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)] public bool TintForOverlay { get => tintToAim.Checked; set { tintToAim.Checked = value; originalTint = value; } }
 
     public PixelCrosshairEditor(string? imagePath, Color color)
     {
@@ -33,7 +36,9 @@ internal sealed class PixelCrosshairEditor : Form
         FormBorderStyle = FormBorderStyle.Sizable; BackColor = DarkTheme.Window; ForeColor = DarkTheme.Text; Font = AppFonts.Regular(9.5f);
         initialColor = color; resizableCanvas = true; KeyPreview = true;
         if (imagePath == null) canvas = new DrawingCanvas(new Bitmap(64, 64, PixelFormat.Format32bppArgb));
-        else { using var source = Image.FromFile(imagePath); canvas = new DrawingCanvas(new Bitmap(source)); }
+        else { using var source = Image.FromFile(imagePath); canvas = new DrawingCanvas(((Bitmap)source).Clone(new Rectangle(0,0,source.Width,source.Height),PixelFormat.Format32bppArgb)); }
+        originalImage = (Bitmap)canvas.Image.Clone(); DrawingName = imagePath == null ? "My crosshair" : Path.GetFileNameWithoutExtension(imagePath);
+        Shown += (_, _) => { originalTint = tintToAim.Checked; RoundedUi.Apply(this); };
         canvas.PenColor = color; alpha.Value = color.A;
         canvas.StrokeStarted += PushUndo;
         canvas.Changed += () => livePreview.Invalidate();
@@ -42,9 +47,38 @@ internal sealed class PixelCrosshairEditor : Form
         canvas.PointerColorChanged += c => pixelValue.Text = $"RGBA {c.R}, {c.G}, {c.B}, {c.A}";
         BuildEditorLayout();
         ApplyDarkCaption();
-        FormClosed += (_, _) => { foreach (var b in undo) b.Dispose(); foreach (var b in redo) b.Dispose(); canvas.Image.Dispose(); };
+        FormClosed += (_, _) => { foreach (var b in undo) b.Dispose(); foreach (var b in redo) b.Dispose(); canvas.Image.Dispose(); originalImage.Dispose(); };
     }
 
+    internal bool HasUnsavedChanges() {
+        if (originalTint != tintToAim.Checked || originalImage.Size != canvas.Image.Size) return true;
+        for(int y=0;y<originalImage.Height;y++)for(int x=0;x<originalImage.Width;x++)
+            if(originalImage.GetPixel(x,y).ToArgb()!=canvas.Image.GetPixel(x,y).ToArgb())return true;
+        return false;
+    }
+    private bool PrepareSave() {
+        string? name = DarkPrompt.Show(this, "Save crosshair", "Name", DrawingName);
+        if(string.IsNullOrWhiteSpace(name))return false;
+        DrawingName=name; ResultImage=(Bitmap)canvas.Image.Clone(); return true;
+    }
+    protected override void OnFormClosing(FormClosingEventArgs e) {
+        if (DialogResult != DialogResult.OK && e.CloseReason == CloseReason.UserClosing && HasUnsavedChanges()) {
+            using var prompt=new SaveDrawingPrompt();
+            var result=prompt.ShowDialog(this);
+            if(result==DialogResult.Yes) { if(PrepareSave())DialogResult=DialogResult.OK;else{e.Cancel=true;DialogResult=DialogResult.None;} }
+            else if(result!=DialogResult.No){e.Cancel=true;DialogResult=DialogResult.None;}
+        }
+        base.OnFormClosing(e);
+    }
+    private sealed class SaveDrawingPrompt : StyledDialog {
+        public SaveDrawingPrompt(){
+            Text="Unsaved drawing";ClientSize=new Size(460,180);
+            Controls.Add(new Label{Text="Save your changes before closing?",Dock=DockStyle.Top,Height=56});
+            var actions=new FlowLayoutPanel{Dock=DockStyle.Bottom,Height=44,FlowDirection=FlowDirection.RightToLeft};
+            var cancel=ActionButton("Cancel",DialogResult.Cancel);var discard=ActionButton("Discard",DialogResult.No);var save=ActionButton("Save",DialogResult.Yes);
+            actions.Controls.Add(cancel);actions.Controls.Add(discard);actions.Controls.Add(save);Controls.Add(actions);CancelButton=cancel;AcceptButton=save;
+        }
+    }
     private void ApplyDarkCaption()
     {
         if (!IsHandleCreated) CreateControl();
@@ -91,22 +125,23 @@ internal sealed class PixelCrosshairEditor : Form
         var mirrorX = new DarkCheckBox { Text = "Mirror X", Width = 105 }; mirrorX.CheckedChanged += (_, _) => canvas.MirrorX = mirrorX.Checked; toolbar.Controls.Add(mirrorX);
         var mirrorY = new DarkCheckBox { Text = "Mirror Y", Width = 105 }; mirrorY.CheckedChanged += (_, _) => canvas.MirrorY = mirrorY.Checked; toolbar.Controls.Add(mirrorY);
         toolbar.Controls.Add(pixelValue);
-        var save = MakeButton("Save drawing", true, "save"); save.Click += (_, _) => { ResultImage = new Bitmap(canvas.Image); DialogResult = DialogResult.OK; Close(); }; toolbar.Controls.Add(save);
+        var save = MakeButton("Save drawing", true, "save"); save.Click += (_, _) => { if (PrepareSave()) { DialogResult = DialogResult.OK; Close(); } }; toolbar.Controls.Add(save);
         var cancel = MakeButton("Cancel", false); cancel.Click += (_, _) => { DialogResult = DialogResult.Cancel; Close(); }; toolbar.Controls.Add(cancel);
         root.Controls.Add(toolbar, 0, 0);
         var scroll = new EditorViewport(canvas) { Dock = DockStyle.Fill };
-                canvas.PixelSize = zoom.Value;
+        scroll.ZoomRequested += steps => zoom.Value = Math.Clamp(zoom.Value + steps, zoom.Minimum, zoom.Maximum);
+        canvas.PixelSize = zoom.Value;
         var workspace = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 }; workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220));
         workspace.Controls.Add(scroll, 0, 0);
         var sidebar = new Panel { Dock = DockStyle.Fill, Padding = new Padding(12), BackColor = DarkTheme.Window };
-        sidebar.Controls.Add(livePreview); sidebar.Controls.Add(new Label { Text = "PREVIEW · 1× / 4×\nRight mouse: erase\nCtrl+Z / Ctrl+Y: undo / redo", Dock = DockStyle.Top, Height = 76, ForeColor = DarkTheme.Muted });
+        sidebar.Controls.Add(livePreview); sidebar.Controls.Add(new Label { Text = "PREVIEW · 1× / 4×\nRight mouse: erase\nCtrl+wheel: zoom\nCtrl+Z / Ctrl+Y: undo / redo", Dock = DockStyle.Top, Height = 94, ForeColor = DarkTheme.Muted });
         livePreview.Paint += (_, e) => { e.Graphics.InterpolationMode = InterpolationMode.NearestNeighbor; e.Graphics.PixelOffsetMode = PixelOffsetMode.Half; int w = canvas.Image.Width, h = canvas.Image.Height; e.Graphics.DrawImage(canvas.Image, (livePreview.Width-w)/2, 24, w, h); float scale = Math.Min(4, Math.Min((livePreview.Width-16f)/w, (livePreview.Height-h-60f)/h)); if (scale > 0) e.Graphics.DrawImage(canvas.Image, (livePreview.Width-w*scale)/2, h+56, w*scale, h*scale); };
         workspace.Controls.Add(sidebar, 1, 0); root.Controls.Add(workspace, 0, 1);
     }
 
     private static Button MakeButton(string text, bool primary, string? glyph = null)
     {
-        var b = new Button { Text = text, AutoSize = true, Height = 36, FlatStyle = FlatStyle.Flat, BackColor = primary ? DarkTheme.Accent : DarkTheme.SurfaceHover, ForeColor = primary ? DarkTheme.Window : DarkTheme.Text, Padding = new Padding(10, 3, 10, 3), Margin = new Padding(4), Cursor = Cursors.Hand, Font = AppFonts.Semibold(9) };
+        var b = new RoundedButton { Text = text, AutoSize = true, Height = 36, FlatStyle = FlatStyle.Flat, BackColor = primary ? DarkTheme.Accent : DarkTheme.SurfaceHover, ForeColor = primary ? DarkTheme.Window : DarkTheme.Text, Padding = new Padding(10, 3, 10, 3), Margin = new Padding(4), Cursor = Cursors.Hand, Font = AppFonts.Semibold(9) };
         if (glyph != null) { b.Image = GlyphPainter.Create(glyph, 16, primary ? DarkTheme.Window : DarkTheme.Text); b.ImageAlign = ContentAlignment.MiddleLeft; b.TextImageRelation = TextImageRelation.ImageBeforeText; }
         b.FlatAppearance.BorderSize = primary ? 0 : 1; b.FlatAppearance.BorderColor = DarkTheme.Border; return b;
     }
@@ -123,20 +158,20 @@ internal sealed class PixelCrosshairEditor : Form
     }
     private void Undo()
     {
-        if (undo.Count == 0) return; redo.Push(new Bitmap(canvas.Image)); ReplaceImage(undo.Pop());
+        if (undo.Count == 0) return; redo.Push((Bitmap)canvas.Image.Clone()); ReplaceImage(undo.Pop());
     }
     private void Redo()
     {
-        if (redo.Count == 0) return; undo.Push(new Bitmap(canvas.Image)); ReplaceImage(redo.Pop());
+        if (redo.Count == 0) return; undo.Push((Bitmap)canvas.Image.Clone()); ReplaceImage(redo.Pop());
     }
     private void ReplaceImage(Bitmap image) { var old = canvas.Image; canvas.Image = image; old.Dispose(); syncingDimensions = true; dimensions.SelectedIndex = Array.IndexOf(new[] {16,32,64,128,256}, image.Width); syncingDimensions = false; }
     private void ClearCanvas()
     {
-        PushUndo(new Bitmap(canvas.Image)); using var g = Graphics.FromImage(canvas.Image); g.Clear(Color.Transparent); canvas.Invalidate(); livePreview.Invalidate();
+        PushUndo((Bitmap)canvas.Image.Clone()); using var g = Graphics.FromImage(canvas.Image); g.Clear(Color.Transparent); canvas.Invalidate(); livePreview.Invalidate();
     }
     private void ResizeCanvas(int n)
     {
-        PushUndo(new Bitmap(canvas.Image)); var old = canvas.Image; var resized = new Bitmap(n, n, PixelFormat.Format32bppArgb); using (var g = Graphics.FromImage(resized)) { g.CompositingMode = CompositingMode.SourceCopy; g.DrawImageUnscaled(old, (n-old.Width)/2, (n-old.Height)/2); } canvas.Image = resized; old.Dispose();
+        PushUndo((Bitmap)canvas.Image.Clone()); var old = canvas.Image; var resized = new Bitmap(n, n, PixelFormat.Format32bppArgb); using (var g = Graphics.FromImage(resized)) { g.CompositingMode = CompositingMode.SourceCopy; g.DrawImageUnscaled(old, (n-old.Width)/2, (n-old.Height)/2); } canvas.Image = resized; old.Dispose();
     }
 
 }

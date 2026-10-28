@@ -118,7 +118,7 @@ internal sealed class DarkNumberBox : UserControl
     {
         base.OnPaint(e); e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         using var border = new Pen(Focused || editor.Focused ? DarkTheme.Accent : DarkTheme.Border);
-        e.Graphics.DrawRectangle(border, 0, 0, Width - 1, Height - 1);
+        e.Graphics.DrawRoundedRectangle(border, new Rectangle(0, 0, Width - 1, Height - 1), 7);
         int x = Width - 24; using var divider = new Pen(DarkTheme.Border); e.Graphics.DrawLine(divider, x, 2, x, Height - 3);
         using var arrow = new Pen(DarkTheme.Muted, 1.5f) { StartCap = LineCap.Round, EndCap = LineCap.Round };
         e.Graphics.DrawLines(arrow, [new PointF(x + 7, Height / 2f - 2), new PointF(x + 10, Height / 2f - 5), new PointF(x + 13, Height / 2f - 2)]);
@@ -166,7 +166,7 @@ internal sealed class DarkComboBox : ComboBox
         e.Graphics.Clear(DarkTheme.Input);
         TextRenderer.DrawText(e.Graphics, Text, Font, new Rectangle(10,0,Width-40,Height),DarkTheme.Text,TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis);
         using var border=new Pen(Focused?DarkTheme.Accent:DarkTheme.Border);
-        e.Graphics.DrawRectangle(border,0,0,Width-1,Height-1);
+        e.Graphics.SmoothingMode=SmoothingMode.AntiAlias; e.Graphics.DrawRoundedRectangle(border,new Rectangle(0,0,Width-1,Height-1),7);
         using var arrow=new Pen(DarkTheme.Muted,1.5f);int x=Width-14,y=Height/2;
         e.Graphics.DrawLines(arrow,new[]{new Point(x-4,y-2),new Point(x,y+2),new Point(x+4,y-2)});
     }    private void DrawItemDark(object? sender, DrawItemEventArgs e)
@@ -202,7 +202,7 @@ internal sealed class DarkTabHost : UserControl
         {
             bool active = i == selected; pages[i].Page.Visible = active; pages[i].Page.BringToFront();
             pages[i].Button.BackColor = active ? DarkTheme.Surface : DarkTheme.Window; pages[i].Button.ForeColor = active ? DarkTheme.Text : DarkTheme.Muted;
-            pages[i].Button.Image?.Dispose(); pages[i].Button.Image = GlyphPainter.Create(new[] { "aim", "edit", "profiles", "settings" }[i % 4], 18, active ? DarkTheme.Accent : DarkTheme.Muted);
+            pages[i].Button.Image?.Dispose(); pages[i].Button.Image = GlyphPainter.Create(new[] { "aim", "edit", "settings" }[i % 3], 18, active ? DarkTheme.Accent : DarkTheme.Muted);
         }
     }
 }
@@ -258,9 +258,9 @@ internal static class DarkPrompt
         var label = new Label { Text = prompt, AutoSize = false, Dock = DockStyle.Top, Height = 46, ForeColor = DarkTheme.Muted, TextAlign = ContentAlignment.MiddleLeft };
         var input = new TextBox { Text = initial, Dock = DockStyle.Top, Height = 34, BorderStyle = BorderStyle.FixedSingle, BackColor = DarkTheme.Input, ForeColor = DarkTheme.Text, Font = AppFonts.Regular(10) };
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 48, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(0, 4, 0, 0), BackColor = DarkTheme.Window };
-        var save = new Button { Text = "Save", DialogResult = DialogResult.OK, Width = 92, Height = 34, FlatStyle = FlatStyle.Flat, BackColor = DarkTheme.Accent, ForeColor = DarkTheme.Window, Font = AppFonts.Semibold(9), Image = GlyphPainter.Create("save", 15, DarkTheme.Window), ImageAlign = ContentAlignment.MiddleLeft, TextImageRelation = TextImageRelation.ImageBeforeText, Cursor = Cursors.Hand };
+        var save = new RoundedButton { Text = "Save", DialogResult = DialogResult.OK, Width = 92, Height = 34, FlatStyle = FlatStyle.Flat, BackColor = DarkTheme.Accent, ForeColor = DarkTheme.Window, Font = AppFonts.Semibold(9), Image = GlyphPainter.Create("save", 15, DarkTheme.Window), ImageAlign = ContentAlignment.MiddleLeft, TextImageRelation = TextImageRelation.ImageBeforeText, Cursor = Cursors.Hand };
         save.FlatAppearance.BorderSize = 0;
-        var cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, Width = 92, Height = 34, FlatStyle = FlatStyle.Flat, BackColor = DarkTheme.SurfaceHover, ForeColor = DarkTheme.Text, Font = AppFonts.Semibold(9), Cursor = Cursors.Hand };
+        var cancel = new RoundedButton { Text = "Cancel", DialogResult = DialogResult.Cancel, Width = 92, Height = 34, FlatStyle = FlatStyle.Flat, BackColor = DarkTheme.SurfaceHover, ForeColor = DarkTheme.Text, Font = AppFonts.Semibold(9), Cursor = Cursors.Hand };
         cancel.FlatAppearance.BorderColor = DarkTheme.Border; buttons.Controls.Add(save); buttons.Controls.Add(cancel);
         form.Padding = new Padding(20, 14, 20, 12); form.Controls.Add(input); form.Controls.Add(label); form.Controls.Add(buttons); form.AcceptButton = save; form.CancelButton = cancel;
         form.Shown += (_, _) => { input.Focus(); input.SelectAll(); };
@@ -270,9 +270,9 @@ internal static class DarkPrompt
 
 internal static class RoundedDrawing
 {
-    public static void FillRoundedRectangle(this Graphics g, Brush brush, Rectangle rect, int radius) => g.FillPath(brush, Create(rect, radius));
-    public static void DrawRoundedRectangle(this Graphics g, Pen pen, Rectangle rect, int radius) => g.DrawPath(pen, Create(rect, radius));
-    public static void DrawRoundedRectangle(this Graphics g, Pen pen, float x, float y, float w, float h, int radius) => g.DrawPath(pen, Create(Rectangle.Round(new RectangleF(x, y, w, h)), radius));
+    public static void FillRoundedRectangle(this Graphics g, Brush brush, Rectangle rect, int radius) { using var path=Create(rect,radius);g.FillPath(brush,path); }
+    public static void DrawRoundedRectangle(this Graphics g, Pen pen, Rectangle rect, int radius) { using var path=Create(rect,radius);g.DrawPath(pen,path); }
+    public static void DrawRoundedRectangle(this Graphics g, Pen pen, float x, float y, float w, float h, int radius) { using var path=Create(Rectangle.Round(new RectangleF(x,y,w,h)),radius);g.DrawPath(pen,path); }
     private static GraphicsPath Create(Rectangle r, int radius) { var p = new GraphicsPath(); float d = radius * 2; p.AddArc(r.Left, r.Top, d, d, 180, 90); p.AddArc(r.Right - d, r.Top, d, d, 270, 90); p.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90); p.AddArc(r.Left, r.Bottom - d, d, d, 90, 90); p.CloseFigure(); return p; }
 }
 
@@ -284,7 +284,10 @@ internal sealed class NavigationButton : Button
     protected override void OnLostFocus(EventArgs e) { base.OnLostFocus(e); Invalidate(); }
     protected override void OnPaint(PaintEventArgs e) {
         // Never invoke native Button painting: it adds a default-button border on focus changes.
-        e.Graphics.Clear(BackColor);
+        e.Graphics.Clear(Parent?.BackColor ?? BackColor);
+        e.Graphics.SmoothingMode=SmoothingMode.AntiAlias;
+        using var background=new SolidBrush(BackColor);
+        e.Graphics.FillRoundedRectangle(background,new Rectangle(0,0,Width-1,Height-1),8);
         int left=Padding.Left;
         if(Image!=null){e.Graphics.DrawImage(Image,left,(Height-Image.Height)/2);left+=Image.Width+5;}
         TextRenderer.DrawText(e.Graphics,Text,Font,new Rectangle(left,0,Width-left-Padding.Right,Height),ForeColor,TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis);
@@ -301,6 +304,7 @@ internal sealed class DarkListBox : UserControl
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)] public DrawMode DrawMode { get=>list.DrawMode;set=>list.DrawMode=value; }
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)] public int ItemHeight {get=>list.ItemHeight;set {list.ItemHeight=value;thumb.Invalidate();}}
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)] public bool IntegralHeight {get=>list.IntegralHeight;set=>list.IntegralHeight=value;}
+    public event EventHandler? ItemDoubleClick;
     public event DrawItemEventHandler? DrawItem;
     public event EventHandler? SelectedIndexChanged;
     public DarkListBox() {
@@ -308,6 +312,7 @@ internal sealed class DarkListBox : UserControl
         viewport.Dock=DockStyle.Fill; viewport.Controls.Add(list);
         Controls.Add(viewport);Controls.Add(thumb);
         list.BorderStyle=BorderStyle.None;list.IntegralHeight=false;list.ScrollAlwaysVisible=true;
+        list.MouseDoubleClick += (_, e) => { if (e.Button == MouseButtons.Left && list.IndexFromPoint(e.Location) >= 0) ItemDoubleClick?.Invoke(this, EventArgs.Empty); };
         list.DrawItem+=(_,e)=>DrawItem?.Invoke(this,e);
         list.SelectedIndexChanged+=(_,e)=>SelectedIndexChanged?.Invoke(this,e);
         list.Changed=()=>thumb.Invalidate(); list.Wheel=ScrollWheel;

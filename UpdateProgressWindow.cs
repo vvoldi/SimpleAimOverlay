@@ -26,7 +26,7 @@ internal sealed class UpdateProgressWindow : StyledDialog
         headline.Text=$"Downloading update · {percent}%";bar.Percent=percent;
         double mb=1024d*1024;
         string remaining=progress.BytesPerSecond>0?TimeSpan.FromSeconds(Math.Min(86400,(progress.Total-progress.Received)/progress.BytesPerSecond)).ToString(@"mm\:ss"):"—";
-        detail.Text=$"{progress.Received/mb:F1} / {progress.Total/mb:F1} MB\n{progress.BytesPerSecond/mb:F1} MB/s · about {remaining} remaining";
+        detail.Text=$"{progress.Received/mb:F1} / {progress.Total/mb:F1} MB\n{progress.BytesPerSecond/mb:F1} MB/s (last 4s) · about {remaining} remaining";
     }
     public void SetStage(string text){if(IsDisposed)return;headline.Text=text;detail.Text="Keep the app open. Your settings will be preserved.";}
     public void Finish(){finished=true;Close();}

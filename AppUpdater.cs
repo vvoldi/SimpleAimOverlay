@@ -68,6 +68,7 @@ internal sealed class AppUpdater : IDisposable
             status("Verifying update…"); progressWindow.SetStage("Verifying update…");
             await VerifyAsync(file, release.Digest, downloadTimeout.Token);
             downloadTimeout.Token.ThrowIfCancellationRequested();
+            ConfigurationTransfer.Backup();
             progressWindow.SetStage("Waiting for Windows approval…");
             var start = new ProcessStartInfo(file) { UseShellExecute=true, Verb="runas" };
             start.ArgumentList.Add("/update"); start.ArgumentList.Add(Environment.ProcessId.ToString());
@@ -82,27 +83,43 @@ internal sealed class AppUpdater : IDisposable
     internal sealed record DownloadProgress(long Received, long Total, double BytesPerSecond);
     internal async Task DownloadAsync(Release release, string file, IProgress<DownloadProgress> progress, CancellationToken token)
     {
+        using var log=new DownloadDiagnostics(release.Size);
+        var headers=Stopwatch.StartNew();
+        try {
         using var response = await client.GetAsync(release.Url,HttpCompletionOption.ResponseHeadersRead,token).ConfigureAwait(false);
+        log.Write($"headers status={(int)response.StatusCode} elapsed_ms={headers.ElapsedMilliseconds} content_length={response.Content.Headers.ContentLength}");
         response.EnsureSuccessStatusCode();
         await using var input = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
         await using var output = new FileStream(file,FileMode.CreateNew,FileAccess.Write,FileShare.None,262144,true);
-        await CopyDownloadAsync(input,output,release.Size,progress,token).ConfigureAwait(false);
+        await CopyDownloadCoreAsync(input,output,release.Size,progress,token,log).ConfigureAwait(false);
+        log.Write("download_complete");
+        }catch(Exception ex){log.Write($"failed type={ex.GetType().Name} hresult={ex.HResult} cancelled={token.IsCancellationRequested}");throw;}
     }
-    internal static async Task CopyDownloadAsync(Stream input, Stream output, long expectedSize, IProgress<DownloadProgress> progress, CancellationToken token)
+    internal static Task CopyDownloadAsync(Stream input, Stream output, long expectedSize, IProgress<DownloadProgress> progress, CancellationToken token) => CopyDownloadCoreAsync(input,output,expectedSize,progress,token,null);
+    private static async Task CopyDownloadCoreAsync(Stream input, Stream output, long expectedSize, IProgress<DownloadProgress> progress, CancellationToken token, DownloadDiagnostics? log)
     {
         byte[] buffer = new byte[262144]; long total = 0;
+        var speed=new RecentDownloadSpeed();double networkMs=0,diskMs=0;long loggedAt=0;
         var elapsed = Stopwatch.StartNew(); long reportedAt = -250;
         while (true) {
             // Abort a stalled connection without imposing a short total download limit.
             using var idle = CancellationTokenSource.CreateLinkedTokenSource(token);
             idle.CancelAfter(TimeSpan.FromSeconds(45));
-            int read = await input.ReadAsync(buffer,idle.Token).ConfigureAwait(false);
+            var operation=Stopwatch.StartNew();
+            int read;
+            try { read = await input.ReadAsync(buffer,idle.Token).ConfigureAwait(false); }
+            catch { log?.Write($"read_failed received={total} waiting_ms={operation.ElapsedMilliseconds}");throw; }
+            networkMs+=operation.Elapsed.TotalMilliseconds;
             if (read == 0) break;
             total += read;
             if (total > expectedSize) throw new InvalidDataException("Downloaded package size does not match the release.");
-            await output.WriteAsync(buffer.AsMemory(0,read),token).ConfigureAwait(false);
+            operation.Restart();await output.WriteAsync(buffer.AsMemory(0,read),token).ConfigureAwait(false);diskMs+=operation.Elapsed.TotalMilliseconds;
             if (elapsed.ElapsedMilliseconds-reportedAt >= 250 || total==expectedSize) {
-                progress.Report(new(total,expectedSize,total/Math.Max(0.1,elapsed.Elapsed.TotalSeconds)));
+                double rate=speed.Sample(elapsed.Elapsed.TotalSeconds,total);
+                progress.Report(new(total,expectedSize,rate));
+                if(elapsed.ElapsedMilliseconds-loggedAt>=1000||total==expectedSize){
+                    log?.Write(FormattableString.Invariant($"progress elapsed_ms={elapsed.ElapsedMilliseconds} bytes={total} recent_bytes_sec={rate:F0} network_wait_ms={networkMs:F1} disk_write_ms={diskMs:F1}"));loggedAt=elapsed.ElapsedMilliseconds;networkMs=diskMs=0;
+                }
                 reportedAt=elapsed.ElapsedMilliseconds;
             }
         }

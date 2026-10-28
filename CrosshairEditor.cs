@@ -9,16 +9,16 @@ internal sealed class PixelCrosshairEditor : Form
 {
     private readonly PixelCanvas canvas;
     private readonly Stack<Bitmap> undo = new(), redo = new();
-    private readonly TrackBar zoom = new() { Minimum = 3, Maximum = 20, Value = 10, TickStyle = TickStyle.None, Width = 150, Height = 34 };
-    private readonly NumericUpDown brushSize = new() { Minimum = 1, Maximum = 16, Value = 1, Width = 64 };
-    private readonly NumericUpDown alpha = new() { Minimum = 0, Maximum = 255, Value = 255, Width = 68 };
+    private readonly DarkSlider zoom = new(3, 20) { Value = 10, Width = 150, Height = 34 };
+    private readonly DarkNumberBox brushSize = new(1, 16, 1) { Width = 72, Height = 30 };
+    private readonly DarkNumberBox alpha = new(0, 255, 255) { Width = 78, Height = 30 };
     private readonly Label zoomValue = new() { AutoSize = true, Text = "10×", ForeColor = DarkTheme.Muted, Padding = new Padding(2, 8, 8, 0) };
     private readonly Label pixelValue = new() { AutoSize = true, Text = "RGBA —", ForeColor = DarkTheme.Muted, Padding = new Padding(8, 8, 4, 0) };
-    private readonly Button penColor = new() { Text = "Колір пензля", AutoSize = true, Height = 36, FlatStyle = FlatStyle.Flat, Padding = new Padding(10, 3, 10, 3), Cursor = Cursors.Hand };
-    private readonly CheckBox eraser = new() { Text = "Ластик", AutoSize = true, ForeColor = DarkTheme.Text, BackColor = DarkTheme.Surface, Padding = new Padding(8, 9, 8, 0) };
-    private readonly CheckBox tintToAim = new() { Text = "Колір із вкладки «Приціл»", AutoSize = true, Checked = true, ForeColor = DarkTheme.Text, BackColor = DarkTheme.Surface, Padding = new Padding(6, 9, 6, 0) };
+    private readonly Button penColor = new() { Text = "Pen color", AutoSize = true, Height = 36, FlatStyle = FlatStyle.Flat, Padding = new Padding(10, 3, 10, 3), Cursor = Cursors.Hand };
+    private readonly DarkCheckBox eraser = new() { Text = "Eraser", AutoSize = true, ForeColor = DarkTheme.Text, BackColor = DarkTheme.Surface, Padding = new Padding(8, 9, 8, 0) };
+    private readonly DarkCheckBox tintToAim = new() { Text = "Use crosshair color", AutoSize = true, Checked = true, ForeColor = DarkTheme.Text, BackColor = DarkTheme.Surface, Padding = new Padding(6, 9, 6, 0) };
     private readonly bool resizableCanvas;
-    private readonly ComboBox dimensions = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 80 };
+    private readonly DarkComboBox dimensions = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 96 };
     private Color initialColor;
 
     public Bitmap? ResultImage { get; private set; }
@@ -26,9 +26,9 @@ internal sealed class PixelCrosshairEditor : Form
 
     public PixelCrosshairEditor(string? imagePath, Color color)
     {
-        Text = imagePath == null ? "Новий приціл" : "Редактор прицілу";
+        Text = imagePath == null ? "New crosshair" : "Crosshair editor"; Icon = BrandIcon.Load();
         StartPosition = FormStartPosition.CenterParent; MinimumSize = new Size(880, 640); Size = new Size(1180, 820);
-        FormBorderStyle = FormBorderStyle.Sizable; BackColor = DarkTheme.Window; ForeColor = DarkTheme.Text; Font = new Font("Segoe UI", 9.5f);
+        FormBorderStyle = FormBorderStyle.Sizable; BackColor = DarkTheme.Window; ForeColor = DarkTheme.Text; Font = AppFonts.Regular(9.5f);
         initialColor = color; resizableCanvas = imagePath == null;
         if (imagePath == null) canvas = new PixelCanvas(new Bitmap(64, 64, PixelFormat.Format32bppArgb));
         else { using var source = Image.FromFile(imagePath); canvas = new PixelCanvas(new Bitmap(source)); }
@@ -60,37 +60,38 @@ internal sealed class PixelCrosshairEditor : Form
         var root = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1, Padding = new Padding(12), BackColor = DarkTheme.Window };
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 88)); root.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); Controls.Add(root);
         var toolbar = new FlowLayoutPanel { Dock = DockStyle.Fill, BackColor = DarkTheme.Surface, WrapContents = true, Padding = new Padding(4), AutoScroll = true };
-        var undoButton = MakeButton("↶  Назад", false); undoButton.Click += (_, _) => Undo(); toolbar.Controls.Add(undoButton);
-        var redoButton = MakeButton("↷  Повтор", false); redoButton.Click += (_, _) => Redo(); toolbar.Controls.Add(redoButton);
-        var clear = MakeButton("Очистити", false); clear.Click += (_, _) => ClearCanvas(); toolbar.Controls.Add(clear);
+        var undoButton = MakeButton("Undo", false, "undo"); undoButton.Click += (_, _) => Undo(); toolbar.Controls.Add(undoButton);
+        var redoButton = MakeButton("Redo", false, "redo"); redoButton.Click += (_, _) => Redo(); toolbar.Controls.Add(redoButton);
+        var clear = MakeButton("Clear", false, "clear"); clear.Click += (_, _) => ClearCanvas(); toolbar.Controls.Add(clear);
         var zoomOut = MakeButton("−", false); zoomOut.Click += (_, _) => zoom.Value = Math.Max(zoom.Minimum, zoom.Value - 1); toolbar.Controls.Add(zoomOut);
         toolbar.Controls.Add(zoom); toolbar.Controls.Add(zoomValue);
         var zoomIn = MakeButton("+", false); zoomIn.Click += (_, _) => zoom.Value = Math.Min(zoom.Maximum, zoom.Value + 1); toolbar.Controls.Add(zoomIn);
         zoom.ValueChanged += (_, _) => { zoomValue.Text = $"{zoom.Value}×"; canvas.PixelSize = zoom.Value; };
-        penColor.BackColor = initialColor; penColor.ForeColor = Color.White; penColor.FlatAppearance.BorderColor = DarkTheme.Border; penColor.Click += (_, _) => PickPenColor(); toolbar.Controls.Add(penColor);
-        toolbar.Controls.Add(new Label { Text = "Пензель", AutoSize = true, ForeColor = DarkTheme.Muted, Padding = new Padding(6, 9, 0, 0), BackColor = DarkTheme.Surface });
+        penColor.BackColor = initialColor; penColor.ForeColor = DarkTheme.Text; penColor.Image = GlyphPainter.Create("color", 16); penColor.ImageAlign = ContentAlignment.MiddleLeft; penColor.TextImageRelation = TextImageRelation.ImageBeforeText; penColor.FlatAppearance.BorderColor = DarkTheme.Border; penColor.Click += (_, _) => PickPenColor(); toolbar.Controls.Add(penColor);
+        toolbar.Controls.Add(new Label { Text = "Brush", AutoSize = true, ForeColor = DarkTheme.Muted, Padding = new Padding(6, 9, 0, 0), BackColor = DarkTheme.Surface });
         brushSize.BackColor = DarkTheme.Input; brushSize.ForeColor = DarkTheme.Text; brushSize.ValueChanged += (_, _) => canvas.BrushSize = (int)brushSize.Value; toolbar.Controls.Add(brushSize);
         dimensions.BackColor = DarkTheme.Input; dimensions.ForeColor = DarkTheme.Text;
-        alpha.BackColor = DarkTheme.Input; alpha.ForeColor = DarkTheme.Text; alpha.ValueChanged += (_, _) => canvas.PenColor = Color.FromArgb((int)alpha.Value, initialColor.R, initialColor.G, initialColor.B); toolbar.Controls.Add(new Label { Text = "Альфа", AutoSize = true, ForeColor = DarkTheme.Muted, Padding = new Padding(5, 9, 0, 0), BackColor = DarkTheme.Surface }); toolbar.Controls.Add(alpha);
+        alpha.ValueChanged += (_, _) => canvas.PenColor = Color.FromArgb(alpha.Value, initialColor.R, initialColor.G, initialColor.B); toolbar.Controls.Add(new Label { Text = "Alpha", AutoSize = true, ForeColor = DarkTheme.Muted, Padding = new Padding(5, 9, 0, 0), BackColor = DarkTheme.Surface }); toolbar.Controls.Add(alpha);
         eraser.CheckedChanged += (_, _) => canvas.Eraser = eraser.Checked; toolbar.Controls.Add(eraser);
         toolbar.Controls.Add(tintToAim);
         if (resizableCanvas)
         {
             dimensions.Items.AddRange(["16 × 16", "32 × 32", "64 × 64", "128 × 128", "256 × 256"]); dimensions.SelectedIndex = 2;
             dimensions.SelectedIndexChanged += (_, _) => { if (dimensions.SelectedItem is string v) { int n = int.Parse(v.Split(' ')[0]); ResizeCanvas(n); } };
-            toolbar.Controls.Add(new Label { Text = "Полотно", AutoSize = true, ForeColor = DarkTheme.Muted, Padding = new Padding(6, 9, 0, 0), BackColor = DarkTheme.Surface }); toolbar.Controls.Add(dimensions);
+            toolbar.Controls.Add(new Label { Text = "Canvas", AutoSize = true, ForeColor = DarkTheme.Muted, Padding = new Padding(6, 9, 0, 0), BackColor = DarkTheme.Surface }); toolbar.Controls.Add(dimensions);
         }
         toolbar.Controls.Add(pixelValue);
-        var save = MakeButton("Зберегти в бібліотеку", true); save.Click += (_, _) => { ResultImage = new Bitmap(canvas.Image); DialogResult = DialogResult.OK; Close(); }; toolbar.Controls.Add(save);
-        var cancel = MakeButton("Скасувати", false); cancel.Click += (_, _) => { DialogResult = DialogResult.Cancel; Close(); }; toolbar.Controls.Add(cancel);
+        var save = MakeButton("Save to gallery", true, "save"); save.Click += (_, _) => { ResultImage = new Bitmap(canvas.Image); DialogResult = DialogResult.OK; Close(); }; toolbar.Controls.Add(save);
+        var cancel = MakeButton("Cancel", false); cancel.Click += (_, _) => { DialogResult = DialogResult.Cancel; Close(); }; toolbar.Controls.Add(cancel);
         root.Controls.Add(toolbar, 0, 0);
         var scroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = DarkTheme.Card, Padding = new Padding(14) };
         canvas.PixelSize = zoom.Value; scroll.Controls.Add(canvas); root.Controls.Add(scroll, 0, 1);
     }
 
-    private static Button MakeButton(string text, bool primary)
+    private static Button MakeButton(string text, bool primary, string? glyph = null)
     {
-        var b = new Button { Text = text, AutoSize = true, Height = 36, FlatStyle = FlatStyle.Flat, BackColor = primary ? DarkTheme.Accent : DarkTheme.SurfaceHover, ForeColor = Color.White, Padding = new Padding(10, 3, 10, 3), Margin = new Padding(4), Cursor = Cursors.Hand };
+        var b = new Button { Text = text, AutoSize = true, Height = 36, FlatStyle = FlatStyle.Flat, BackColor = primary ? DarkTheme.Accent : DarkTheme.SurfaceHover, ForeColor = primary ? DarkTheme.Window : DarkTheme.Text, Padding = new Padding(10, 3, 10, 3), Margin = new Padding(4), Cursor = Cursors.Hand, Font = AppFonts.Semibold(9) };
+        if (glyph != null) { b.Image = GlyphPainter.Create(glyph, 16, primary ? DarkTheme.Window : DarkTheme.Text); b.ImageAlign = ContentAlignment.MiddleLeft; b.TextImageRelation = TextImageRelation.ImageBeforeText; }
         b.FlatAppearance.BorderSize = primary ? 0 : 1; b.FlatAppearance.BorderColor = DarkTheme.Border; return b;
     }
     private void PickPenColor()

@@ -1,6 +1,8 @@
 # Simple Aim Overlay
 
-A lightweight, single-file Windows crosshair overlay. Configure its shape, color, outline, opacity, size, thickness, gap, monitor, and position; browse and recolor 20 bundled crosshairs; draw and edit pixel-art crosshairs; import custom images; keep multiple profiles; and toggle visibility with a hotkey or while holding a mouse button or key. Closing the window can minimize the app to the system tray.
+A lightweight, single-file Windows crosshair overlay. Configure its shape, color, outline, opacity, size, thickness, gap, monitor, and position; browse and recolor 20 bundled crosshairs; draw and edit pixel-art crosshairs; import custom images; keep multiple profiles; and toggle visibility with a hotkey or while holding a mouse button or key. Image crosshairs support size, thickness, gap, outline, tint, and opacity adjustments. Closing the window can minimize the app to the system tray.
+
+The interface uses a dark custom control set, English labels, the bundled Inter typeface, and a matching crosshair icon across the app window, taskbar, and tray. Inter is licensed under the SIL Open Font License 1.1; the license is embedded in the app and available at `Assets/Fonts/OFL.txt`.
 
 The overlay is an independent, click-through desktop window. The public edition does not inject code into games or modify game processes. Visibility in fullscreen depends on Windows, the graphics driver, the game, and its fullscreen presentation mode.
 

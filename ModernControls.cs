@@ -276,37 +276,52 @@ internal sealed class NavigationButton : Button
     }
 }
 
-internal sealed class DarkListBox : ListBox
+internal sealed class DarkListBox : UserControl
 {
-    [DllImport("user32.dll")] static extern bool ShowScrollBar(IntPtr hwnd,int bar,bool show);
-    protected override CreateParams CreateParams { get { var p=base.CreateParams; p.Style |= 0x02000000; return p; } }
-    protected override void OnResize(EventArgs e) { base.OnResize(e); if(thumb != null) { thumb.SetBounds(Math.Max(0,ClientSize.Width-12),0,12,ClientSize.Height); thumb.BringToFront(); } }
-    private bool hiding;
+    private readonly NativeList list = new();
+    private readonly Panel viewport = new();
     private readonly ScrollThumb thumb;
-    public DarkListBox() { thumb=new ScrollThumb(this){Dock=DockStyle.Right,Width=12};Controls.Add(thumb); }
-    protected override void WndProc(ref Message m) {
-        base.WndProc(ref m);
-        if(!hiding && IsHandleCreated && m.Msg is 0xF or 0x85 or 0x5 or 0x115 or 0x20A or 0x100 or 0x180 or 0x181) {
-            hiding=true;ShowScrollBar(Handle,1,false);hiding=false;thumb.Invalidate();
-        }
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)] public ListBox.ObjectCollection Items => list.Items;
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)] public object? SelectedItem { get=>list.SelectedItem; set=>list.SelectedItem=value; }
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)] public DrawMode DrawMode { get=>list.DrawMode;set=>list.DrawMode=value; }
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)] public int ItemHeight {get=>list.ItemHeight;set {list.ItemHeight=value;thumb.Invalidate();}}
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)] public bool IntegralHeight {get=>list.IntegralHeight;set=>list.IntegralHeight=value;}
+    public event DrawItemEventHandler? DrawItem;
+    public event EventHandler? SelectedIndexChanged;
+    public DarkListBox() {
+        thumb=new ScrollThumb(this){Dock=DockStyle.Right,Width=14};
+        viewport.Dock=DockStyle.Fill; viewport.Controls.Add(list);
+        Controls.Add(viewport);Controls.Add(thumb);
+        list.BorderStyle=BorderStyle.None;list.IntegralHeight=false;list.ScrollAlwaysVisible=true;
+        list.DrawItem+=(_,e)=>DrawItem?.Invoke(this,e);
+        list.SelectedIndexChanged+=(_,e)=>SelectedIndexChanged?.Invoke(this,e);
+        list.Changed=()=>thumb.Invalidate();
+        viewport.SizeChanged+=(_,_)=>ResizeList();
+        list.BackColor=DarkTheme.Card;list.ForeColor=DarkTheme.Text;
+    }
+    private void ResizeList() {list.SetBounds(0,0,viewport.ClientSize.Width+SystemInformation.VerticalScrollBarWidth,viewport.ClientSize.Height);thumb.Invalidate();}
+    protected override void OnFontChanged(EventArgs e){base.OnFontChanged(e);if(list!=null)list.Font=Font;}
+    protected override void OnBackColorChanged(EventArgs e){base.OnBackColorChanged(e);if(list!=null)list.BackColor=BackColor;}
+    protected override void OnForeColorChanged(EventArgs e){base.OnForeColorChanged(e);if(list!=null)list.ForeColor=ForeColor;}
+    protected override void OnInvalidated(InvalidateEventArgs e){base.OnInvalidated(e);list?.Invalidate();}
+    private int VisibleRows=>Math.Max(1,list.ClientSize.Height/Math.Max(1,list.ItemHeight));
+    private int MaxTop=>Math.Max(0,list.Items.Count-VisibleRows);
+    private void SetTop(int value){if(list.Items.Count>0)list.TopIndex=Math.Clamp(value,0,MaxTop);thumb.Invalidate();}
+    private sealed class NativeList : ListBox {
+        public Action? Changed;
+        protected override void WndProc(ref Message m){base.WndProc(ref m);if(m.Msg is 0x115 or 0x20A or 0x100 or 0x180 or 0x181 or 0x184 or 0x197 or 0x186)Changed?.Invoke();}
     }
     private sealed class ScrollThumb : Control {
-        readonly DarkListBox list; bool dragging;
-        public ScrollThumb(DarkListBox list) {this.list=list;BackColor=DarkTheme.Card;SetStyle(ControlStyles.UserPaint|ControlStyles.OptimizedDoubleBuffer|ControlStyles.AllPaintingInWmPaint,true);}
-        protected override void OnPaint(PaintEventArgs e) {
-            int visible=Math.Max(1,list.ClientSize.Height/Math.Max(1,list.ItemHeight));
-            if(list.Items.Count<=visible)return;
-            int height=Math.Max(28,Height*visible/list.Items.Count);
-            int top=(Height-height)*list.TopIndex/Math.Max(1,list.Items.Count-visible);
-            using var b=new SolidBrush(dragging?DarkTheme.Accent:DarkTheme.Border);
-            e.Graphics.FillRectangle(b,3,top,6,height);
-        }
-        void MoveTo(int y) {int visible=Math.Max(1,list.ClientSize.Height/Math.Max(1,list.ItemHeight));int max=Math.Max(0,list.Items.Count-visible);list.TopIndex=Math.Clamp((int)Math.Round((double)y/Math.Max(1,Height)*max),0,max);Invalidate();}
-        protected override void OnMouseDown(MouseEventArgs e){base.OnMouseDown(e);dragging=true;Capture=true;MoveTo(e.Y);}
+        readonly DarkListBox owner; bool dragging; int offset;
+        public ScrollThumb(DarkListBox owner){this.owner=owner;BackColor=DarkTheme.Card;SetStyle(ControlStyles.UserPaint|ControlStyles.OptimizedDoubleBuffer|ControlStyles.AllPaintingInWmPaint,true);}
+        int ThumbHeight=>Math.Min(Height,Math.Max(28,Height*owner.VisibleRows/Math.Max(1,owner.Items.Count)));
+        int Travel=>Math.Max(0,Height-ThumbHeight);
+        int ThumbTop=>owner.MaxTop==0?0:Travel*owner.list.TopIndex/owner.MaxTop;
+        protected override void OnPaint(PaintEventArgs e){if(owner.MaxTop==0)return;using var b=new SolidBrush(dragging?DarkTheme.Accent:DarkTheme.Muted);e.Graphics.FillRectangle(b,4,ThumbTop,6,ThumbHeight);}
+        void MoveTo(int y){owner.SetTop(Travel==0?0:(int)Math.Round((double)(y-offset)*owner.MaxTop/Travel));}
+        protected override void OnMouseDown(MouseEventArgs e){base.OnMouseDown(e);if(e.Button!=MouseButtons.Left)return;offset=e.Y>=ThumbTop&&e.Y<ThumbTop+ThumbHeight?e.Y-ThumbTop:ThumbHeight/2;dragging=true;Capture=true;owner.list.Focus();MoveTo(e.Y);}
         protected override void OnMouseMove(MouseEventArgs e){base.OnMouseMove(e);if(dragging)MoveTo(e.Y);}
         protected override void OnMouseUp(MouseEventArgs e){base.OnMouseUp(e);dragging=false;Capture=false;Invalidate();}
+        protected override void OnMouseWheel(MouseEventArgs e){base.OnMouseWheel(e);owner.SetTop(owner.list.TopIndex-e.Delta/120*3);}
     }
 }
-
-
-

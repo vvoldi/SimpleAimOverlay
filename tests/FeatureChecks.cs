@@ -9,6 +9,17 @@ internal static class FeatureChecks
     static void Assert(bool value,string reason){if(!value)throw new Exception(reason);}
     internal static void Run(){
         const BindingFlags fields=BindingFlags.Instance|BindingFlags.NonPublic;
+        Assert(new StoreData().Theme=="dark","Existing installations retain the dark theme");
+        Assert(JsonSerializer.Deserialize<StoreData>(JsonSerializer.Serialize(new StoreData{Theme="light"}))!.Theme=="light","Theme survives saving and loading");
+        using(var root=new Form{BackColor=DarkTheme.Window,ForeColor=DarkTheme.Text}){
+            var input=new TextBox{BackColor=DarkTheme.Input,ForeColor=DarkTheme.Text};
+            var swatch=new Panel{Tag="PreserveColor",BackColor=DarkTheme.Accent};root.Controls.Add(input);root.Controls.Add(swatch);
+            Color original=swatch.BackColor;
+            DarkTheme.Select(true,root);
+            Assert(input.BackColor==DarkTheme.Input&&input.ForeColor==DarkTheme.Text&&root.BackColor==DarkTheme.Window,"Light theme updates existing controls");
+            Assert(swatch.BackColor==original,"Theme preserves chosen artwork colors");
+            DarkTheme.Select(false,root);Assert(input.BackColor==DarkTheme.Input&&root.BackColor==DarkTheme.Window,"Theme can switch back without restart");
+        }
         using(var progress=new UpdateProgressWindow()) {
             progress.Show();var decision=progress.WaitForConfirmationAsync();Application.DoEvents();
             Assert(!decision.IsCompleted,"Verified download must wait for explicit confirmation");

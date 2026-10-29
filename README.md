@@ -2,7 +2,7 @@
 
 A customizable crosshair for **Windows 10/11, 64-bit**. English and Ukrainian. No account required.
 
-**[Download 0.2.2 — Windows installer](https://github.com/vvoldi/SimpleAimOverlay/releases/download/v0.2.2/SimpleAimOverlay-0.2.2-Setup.exe)** · [All releases](https://github.com/vvoldi/SimpleAimOverlay/releases)
+**[Download 0.2.3 — Windows installer](https://github.com/vvoldi/SimpleAimOverlay/releases/download/v0.2.3/SimpleAimOverlay-0.2.3-Setup.exe)** · [All releases](https://github.com/vvoldi/SimpleAimOverlay/releases)
 
 ## Install & update
 
@@ -17,7 +17,7 @@ Updates are checked **once at launch**, or manually in **Settings → Check for 
 - **Share:** import/export drawings as **.aim** (includes color mode) or **PNG**. **Settings → Configuration** transfers settings and drawings together.
 - **Keys:** **F8** toggles visibility; hold **Right Mouse** to hide temporarily. Click either binding in Settings to record up to three keys, including mouse buttons.
 - **Selected game:** **Show only in the selected game** hides the crosshair outside the active game, including after Alt+Tab. It also starts the app when the game launches, using a background watcher at Windows sign-in. PUBG is the default; choose another game with **Browse**.
-- **Settings:** English / Українська, Windows startup, and closing/minimizing to the tray. Choose **Exit** in the tray menu to quit.
+- **Settings:** English / Українська, **Dark / Light theme**, Windows startup, and closing/minimizing to the tray. Your theme changes immediately and is saved. Choose **Exit** in the tray menu to quit.
 
 Fullscreen compatibility depends on the game and graphics mode. No game hooks are used.
 
@@ -32,6 +32,13 @@ Click an image to view it at full size.
 | Settings — English | Налаштування — українська |
 | --- | --- |
 | [![English settings](docs/screenshots/settings.png)](docs/screenshots/settings.png) | [![Ukrainian settings](docs/screenshots/settings-uk.png)](docs/screenshots/settings-uk.png) |
+
+<details>
+<summary>Light theme</summary>
+
+[![Light theme](docs/screenshots/crosshair-light.png)](docs/screenshots/crosshair-light.png)
+
+</details>
 
 <details>
 <summary>Color picker</summary>

@@ -82,7 +82,7 @@ internal sealed class PixelCrosshairEditor : Form
     private void ApplyDarkCaption()
     {
         if (!IsHandleCreated) CreateControl();
-        int dark = 1, caption = 0x00191510, border = 0x00191510, text = 0x00F0EAE8;
+        int dark = DarkTheme.Light?0:1, caption = ColorTranslator.ToWin32(DarkTheme.Window), border = caption, text = ColorTranslator.ToWin32(DarkTheme.Text);
         try
         {
             _ = DwmSetWindowAttribute(Handle, 20, ref dark, sizeof(int));
@@ -107,7 +107,7 @@ internal sealed class PixelCrosshairEditor : Form
         toolbar.Controls.Add(zoom); toolbar.Controls.Add(zoomValue);
         var zoomIn = MakeButton("+", false); zoomIn.Click += (_, _) => zoom.Value = Math.Min(zoom.Maximum, zoom.Value + 1); toolbar.Controls.Add(zoomIn);
         zoom.ValueChanged += (_, _) => { zoomValue.Text = $"{zoom.Value}×"; canvas.PixelSize = zoom.Value; };
-        penColor.BackColor = initialColor; penColor.ForeColor = DarkTheme.Text; penColor.Image = GlyphPainter.Create("color", 16); penColor.ImageAlign = ContentAlignment.MiddleLeft; penColor.TextImageRelation = TextImageRelation.ImageBeforeText; penColor.FlatAppearance.BorderColor = DarkTheme.Border; penColor.Click += (_, _) => PickPenColor(); toolbar.Controls.Add(penColor);
+        penColor.Tag="PreserveColor"; penColor.BackColor = initialColor; penColor.ForeColor = DarkTheme.Text; penColor.Image = GlyphPainter.Create("color", 16); penColor.ImageAlign = ContentAlignment.MiddleLeft; penColor.TextImageRelation = TextImageRelation.ImageBeforeText; penColor.FlatAppearance.BorderColor = DarkTheme.Border; penColor.Click += (_, _) => PickPenColor(); toolbar.Controls.Add(penColor);
         toolbar.Controls.Add(new Label { Text = "Brush", AutoSize = true, ForeColor = DarkTheme.Muted, Padding = new Padding(6, 9, 0, 0), BackColor = DarkTheme.Surface });
         brushSize.BackColor = DarkTheme.Input; brushSize.ForeColor = DarkTheme.Text; brushSize.ValueChanged += (_, _) => canvas.BrushSize = (int)brushSize.Value; toolbar.Controls.Add(brushSize);
         dimensions.BackColor = DarkTheme.Input; dimensions.ForeColor = DarkTheme.Text;

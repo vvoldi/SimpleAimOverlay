@@ -3,8 +3,8 @@ using SimpleAimOverlay;
 internal sealed class SetupProgress : StyledDialog
 {
     readonly Label stage=new(){Dock=DockStyle.Top,Height=55};
-    readonly Panel track=new(){Dock=DockStyle.Top,Height=12,BackColor=Color.FromArgb(34,43,55)};
-    readonly Panel fill=new(){Dock=DockStyle.Left,Width=0,BackColor=Color.FromArgb(55,213,155)};
+    readonly Panel track=new(){Dock=DockStyle.Top,Height=12,BackColor=DarkTheme.SurfaceHover};
+    readonly Panel fill=new(){Dock=DockStyle.Left,Width=0,BackColor=DarkTheme.Accent};
     public SetupProgress()
     {
         Text="Updating Simple Aim Overlay";ClientSize=new Size(520,190);

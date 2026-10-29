@@ -42,7 +42,7 @@ internal static class RoundedUi
     internal static void Apply(Control root) {
         if(attached.TryGetValue(root,out _))return;attached.Add(root,new object());
         if(root is Form form){int rounded=2;if(form.IsHandleCreated)DwmSetWindowAttribute(form.Handle,33,ref rounded,4);}
-        if(root is ScrollableControl){root.HandleCreated+=(_,_)=>SetWindowTheme(root.Handle,"DarkMode_Explorer",null);if(root.IsHandleCreated)SetWindowTheme(root.Handle,"DarkMode_Explorer",null);}
+        if(root is ScrollableControl){root.HandleCreated+=(_,_)=>DarkTheme.ScrollTheme(root);if(root.IsHandleCreated)DarkTheme.ScrollTheme(root);}
         if(root is Button || root is TextBoxBase || root is NumericUpDown || root.GetType().Name is "DarkComboBox" or "DarkNumberBox" || root.GetType()==typeof(Panel)) {
             void Resize(){if(root.Width<2||root.Height<2)return;using var path=Path(new Rectangle(0,0,root.Width,root.Height));var old=root.Region;root.Region=new Region(path);old?.Dispose();}
             root.Resize+=(_,_)=>Resize();Resize();

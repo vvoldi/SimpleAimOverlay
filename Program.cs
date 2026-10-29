@@ -62,6 +62,7 @@ internal sealed class StoreData
     public bool MinimizeToTray { get; set; }
     public bool LaunchWithGame { get; set; }
     public string Language { get; set; } = "en";
+    public string Theme { get; set; } = "dark";
     public string GameExecutable { get; set; } = GameLauncher.FindPubg();
 }
 
@@ -87,7 +88,7 @@ internal sealed class ControlWindow : Form
     private readonly bool previewMode;
     private readonly OverlayWindow overlay = new();
     private readonly DarkTabHost tabs = new();
-    private readonly DarkComboBox shape = new(), monitor = new(), language = new();
+    private readonly DarkComboBox shape = new(), monitor = new(), language = new(), theme = new();
     private readonly KeyBindingButton hotkey = new(), holdKey = new();
     private bool toggleWasDown;
     private readonly DarkSlider outlineWidth = Slider(5, 100), outlineOpacity = Slider(0, 100);
@@ -151,6 +152,7 @@ internal sealed class ControlWindow : Form
             }
             updater.Dispose(); holdTimer.Stop(); holdTimer.Dispose(); UnregisterHotKey(Handle, HotkeyId); tray.Visible = false; tray.Dispose(); overlay.Close();
         };
+        ApplyTheme();
     }
 
     [System.Runtime.InteropServices.DllImport("dwmapi.dll", PreserveSig = true)] private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
@@ -163,6 +165,7 @@ internal sealed class ControlWindow : Form
         _ = DwmSetWindowAttribute(Handle, 34, ref border, sizeof(int));
         _ = DwmSetWindowAttribute(Handle, 35, ref caption, sizeof(int));
         _ = DwmSetWindowAttribute(Handle, 36, ref text, sizeof(int));
+        DarkTheme.Caption(this);
     }
 
     private static DarkSlider Slider(int min, int max) => new(min, max) { Dock = DockStyle.Fill };
@@ -237,6 +240,8 @@ internal sealed class ControlWindow : Form
         var p = Page("Settings"); var grid = Grid(); p.Controls.Add(grid);
         language.Items.AddRange(["English", "Українська"]); AddRow(grid, "Language", language);
         language.SelectedIndexChanged += (_, _) => { if(initializing)return; data.Language=language.SelectedIndex==1?"uk":"en"; ApplyLanguage(); SaveData(); };
+        theme.Items.AddRange(["Dark", "Light"]);AddRow(grid,"Theme",theme);
+        theme.SelectedIndexChanged+=(_,_)=>{if(initializing)return;data.Theme=theme.SelectedIndex==1?"light":"dark";ApplyTheme();SaveData();};
         visible.Text = "Show crosshair"; visible.AutoSize = true; AddRow(grid, "Visibility", visible);
         AddRow(grid, "Toggle hotkey", hotkey);
         hideWhileHeld.Text = "Hide while key is held"; hideWhileHeld.AutoSize = true; AddRow(grid, "Hold to hide", hideWhileHeld);
@@ -271,6 +276,16 @@ internal sealed class ControlWindow : Form
     }
 
     private void SaveData() { if(!previewMode)Store.Save(data); }
+    private void ApplyTheme()
+    {
+        DarkTheme.Select(data.Theme=="light",this);
+        RefreshColorSwatches();
+        if(tray.ContextMenuStrip!=null){
+            DarkTheme.RefreshMenu(tray.ContextMenuStrip);
+            string[] glyphs=["aim","visibility","delete"];
+            for(int i=0;i<tray.ContextMenuStrip.Items.Count;i++){var item=tray.ContextMenuStrip.Items[i];item.Image?.Dispose();item.Image=GlyphPainter.Create(glyphs[i],16,i==0?DarkTheme.Accent:DarkTheme.Text);}
+        }
+    }
     private void ApplyLanguage()
     {
         UiText.Language=data.Language=="uk"?"uk":"en";
@@ -330,6 +345,7 @@ internal sealed class ControlWindow : Form
     {
         var s = data.Current;
         language.SelectedIndex=data.Language=="uk"?1:0;
+        theme.SelectedIndex=data.Theme=="light"?1:0;
         shape.SelectedItem = Shapes.Contains(s.Shape) ? s.Shape : "Cross";
         if (s.Shape == "Image") s.TintImage = !data.OriginalColorImages.Contains(Path.GetFileName(s.ImagePath), StringComparer.OrdinalIgnoreCase);
         SetColor(s.Color, false); SetColor(s.OutlineColor, true);
@@ -538,7 +554,7 @@ internal sealed class ControlWindow : Form
             var incoming=ConfigurationTransfer.Import(dialog.FileName);
             ConfigurationTransfer.Backup();
             incoming.Current.StartWithWindows=data.Current.StartWithWindows;incoming.LaunchWithGame=data.LaunchWithGame;incoming.GameExecutable=data.GameExecutable;
-            data=incoming;initializing=true;LoadCurrent();PopulateImages();initializing=false;ApplyLanguage();Apply();
+            data=incoming;initializing=true;LoadCurrent();PopulateImages();initializing=false;ApplyLanguage();ApplyTheme();Apply();
         }catch(Exception ex){initializing=false;DarkMessage.Show(this,ex.Message,"Configuration");}
     }
     private void CreateImage() => OpenPixelEditor(null, "New crosshair");

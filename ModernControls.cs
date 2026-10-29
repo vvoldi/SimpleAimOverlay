@@ -6,21 +6,6 @@ using System.Windows.Forms;
 
 namespace SimpleAimOverlay;
 
-internal static class DarkTheme
-{
-    public static readonly Color Window = Color.FromArgb(15, 18, 23);
-    public static readonly Color Surface = Color.FromArgb(22, 27, 35);
-    public static readonly Color Card = Color.FromArgb(27, 33, 43);
-    public static readonly Color Input = Color.FromArgb(19, 24, 32);
-    public static readonly Color SurfaceHover = Color.FromArgb(35, 43, 55);
-    public static readonly Color Border = Color.FromArgb(47, 57, 71);
-    public static readonly Color Text = Color.FromArgb(235, 240, 246);
-    public static readonly Color Muted = Color.FromArgb(151, 163, 180);
-    public static readonly Color Accent = Color.FromArgb(69, 220, 153);
-    public static readonly Color AccentHover = Color.FromArgb(52, 195, 133);
-    public static readonly Color Preview = Color.FromArgb(9, 13, 19);
-}
-
 internal sealed class DarkSlider : Control
 {
     private int value;

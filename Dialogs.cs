@@ -8,15 +8,15 @@ internal class StyledDialog : Form
     [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr h, int attr, ref int value, int size);
     public StyledDialog() {
         using var iconStream = GetType().Assembly.GetManifestResourceStream("SimpleAimOverlay.Assets.simple-aim-overlay.ico") ?? GetType().Assembly.GetManifestResourceStream("app.ico"); if (iconStream != null) Icon = new Icon(iconStream);
-        BackColor = Color.FromArgb(15,18,23); ForeColor = Color.FromArgb(230,235,242);
+        BackColor = DarkTheme.Window; ForeColor = DarkTheme.Text;
         AppFonts.Initialize(); Font = AppFonts.Regular(10); StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog; MinimizeBox=false; MaximizeBox=false;
         ShowInTaskbar=false; Padding=new Padding(24);
     }
     protected override void OnShown(EventArgs e) { base.OnShown(e); UiText.Apply(this); RoundedUi.Apply(this); }
-    protected override void OnHandleCreated(EventArgs e) { base.OnHandleCreated(e); int dark=1; DwmSetWindowAttribute(Handle,20,ref dark,4); }
+    protected override void OnHandleCreated(EventArgs e) { base.OnHandleCreated(e); DarkTheme.Caption(this); }
     protected Button ActionButton(string text, DialogResult result) {
-        var b=new RoundedButton { Text=text, DialogResult=result, Width=110, Height=36, FlatStyle=FlatStyle.Flat, BackColor=Color.FromArgb(34,43,55), ForeColor=ForeColor };
+        var b=new RoundedButton { Text=text, DialogResult=result, Width=110, Height=36, FlatStyle=FlatStyle.Flat, BackColor=DarkTheme.SurfaceHover, ForeColor=ForeColor };
         b.FlatAppearance.BorderSize=0; return b;
     }
 }
@@ -49,7 +49,7 @@ internal sealed class DarkColorPicker : StyledDialog
     private bool updating;
     private readonly NumericUpDown[] channels = new NumericUpDown[7];
     private readonly TextBox hex = new();
-    private readonly Panel current = new();
+    private readonly Panel current = new(){Tag="PreserveColor"};
     private ColorSurface field = null!, strip = null!;
     protected override void OnLoad(EventArgs e)
     {
@@ -61,7 +61,7 @@ internal sealed class DarkColorPicker : StyledDialog
         Controls.Add(new Label{Text="Current",Bounds=new Rectangle(382,24,104,24)});
         current.Bounds=new Rectangle(382,50,104,64);Controls.Add(current);
         Controls.Add(new Label{Text="Original",Bounds=new Rectangle(382,132,104,24)});
-        var previous=new Panel{Bounds=new Rectangle(382,158,104,64),BackColor=original,Cursor=Cursors.Hand};
+        var previous=new Panel{Bounds=new Rectangle(382,158,104,64),BackColor=original,Cursor=Cursors.Hand,Tag="PreserveColor"};
         previous.Click+=(_,_)=>SetColor(original);Controls.Add(previous);
         string[] labels=["R","G","B","A","H","S %","V %"];
         for(int i=0;i<channels.Length;i++) {

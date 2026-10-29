@@ -85,6 +85,9 @@ internal static class UiText
     internal static string T(string text)
     {
         if(Language!="uk")return text;
+        if(text=="Theme")return "Тема";
+        if(text=="Dark")return "Темна";
+        if(text=="Light")return "Світла";
         if(Ukrainian.TryGetValue(text,out var value))return value;
         if(text.StartsWith("Display "))return Regex.Replace(text,@"^Display (\d+)","Дисплей $1").Replace(" · Primary"," · Основний");
         if(text.StartsWith("Version ")&&!text.Contains('\n'))return "Версія "+text[8..];

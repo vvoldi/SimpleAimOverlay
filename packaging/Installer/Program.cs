@@ -138,6 +138,7 @@ internal static class Program
     {
         if (DarkMessage.Show("Remove Simple Aim Overlay Test and its test certificate from this PC's trusted stores?", Product, MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
         StopGameWatcher();
+        File.Delete(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Startup), "Simple Aim Overlay.lnk"));
         using (var run = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true)) { run?.DeleteValue("SimpleAimOverlayGameWatcher", false); run?.DeleteValue("SimpleAimOverlay", false); }
         try { File.Delete(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms), Product + ".lnk")); } catch { }
         foreach (var storeName in new[] { StoreName.Root, StoreName.TrustedPublisher })

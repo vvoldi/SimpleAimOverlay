@@ -33,12 +33,6 @@ internal static class GameLauncher
         } catch { }
         return "TslGame.exe";
     }
-    internal static void Configure(bool enabled)
-    {
-        using var key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
-        if (enabled) key.SetValue("SimpleAimOverlayGameWatcher", $"\"{Application.ExecutablePath}\" --watch-game");
-        else { key.DeleteValue("SimpleAimOverlayGameWatcher", false); StopWatcher(); }
-    }
     internal static void StartWatcher() => Process.Start(new ProcessStartInfo(Application.ExecutablePath) { UseShellExecute = true, Arguments = "--watch-game", WindowStyle = ProcessWindowStyle.Hidden })?.Dispose();
     internal static void StopWatcher() { try { using var signal = EventWaitHandle.OpenExisting(StopEventName); signal.Set(); } catch (WaitHandleCannotBeOpenedException) { } }
     internal static void RunWatcher()

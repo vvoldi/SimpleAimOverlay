@@ -8,6 +8,10 @@ internal static class FeatureChecks
 {
     static void Assert(bool value,string reason){if(!value)throw new Exception(reason);}
     internal static void Run(){
+        Assert(StartupRegistration.StartupMode(true,true)=="app", "Both startup options launch one app");
+        Assert(StartupRegistration.StartupMode(true,false)=="app", "Windows startup opens app");
+        Assert(StartupRegistration.StartupMode(false,true)=="watcher", "Game-only startup stays in background");
+        Assert(StartupRegistration.StartupMode(false,false)==null, "Disabled startup launches nothing");
         const BindingFlags fields=BindingFlags.Instance|BindingFlags.NonPublic;
         var feedbackData=new StoreData{GameExecutable=@"C:\Users\PRIVATE_USER\SecretGame\game.exe",Current=new AimSettings{ImagePath=@"C:\Users\PRIVATE_USER\drawing.png",Monitor="PRIVATE_MONITOR",Shape="Image"}};
         var feedback=FeedbackReport.Create("bug","Приціл зникає після перемикання.",feedbackData,144,true);

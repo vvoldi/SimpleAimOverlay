@@ -14,6 +14,13 @@ internal static class Program
     {
         ApplicationConfiguration.Initialize();
         AppFonts.Initialize();
+        if (args.Contains("--startup"))
+        {
+            var settings = Store.Load();
+            string? mode = StartupRegistration.StartupMode(settings.Current.StartWithWindows, settings.LaunchWithGame);
+            if (mode == null) return;
+            if (mode == "watcher") { GameLauncher.RunWatcher(); return; }
+        }
         if (args.Contains("--watch-game")) { GameLauncher.RunWatcher(); return; }
         using var mutex = new Mutex(true, "SimpleAimOverlay.SingleInstance", out bool first);
         if (!first) return;
@@ -143,7 +150,7 @@ internal sealed class ControlWindow : Form
         Resize += (_, _) => { if (WindowState == FormWindowState.Minimized && data.MinimizeToTray) Hide(); };
         tray.DoubleClick += (_, _) => RestoreWindow();
         holdTimer.Tick += (_, _) => PollHoldKey();
-        Shown += async (_, _) => { ApplyLanguage(); RoundedUi.Apply(this); if(previewMode)return; runtimeStarted = true; RefreshRuntimeVisibility(); BindHotkey(); holdTimer.Start(); if (data.LaunchWithGame) GameLauncher.StartWatcher(); if (Environment.GetCommandLineArgs().Contains("--game")) Hide(); await CheckUpdates(false); };
+        Shown += async (_, _) => { ApplyLanguage(); RoundedUi.Apply(this); if(previewMode)return; try { StartupRegistration.Migrate(data); } catch (Exception ex) { DarkMessage.Show(this, ex.Message, "Simple Aim Overlay"); } runtimeStarted = true; RefreshRuntimeVisibility(); BindHotkey(); holdTimer.Start(); if (data.LaunchWithGame) GameLauncher.StartWatcher(); if (Environment.GetCommandLineArgs().Contains("--game")) Hide(); await CheckUpdates(false); };
         FormClosing += (_, e) =>
         {
             if (!allowExit && e.CloseReason == CloseReason.UserClosing && data.MinimizeToTrayOnClose)
@@ -303,7 +310,7 @@ internal sealed class ControlWindow : Form
         if (initializing) return;
         string selected = gameExecutable.Text.Trim().Trim('"');
         if (launchWithGame.Checked && !GameLauncher.IsValidTarget(selected)) { DarkMessage.Show(this, "Choose an existing game EXE, or enter its process filename (for example TslGame.exe).", "Game startup"); return; }
-        try { GameLauncher.Configure(launchWithGame.Checked); data.GameExecutable = selected; data.LaunchWithGame = launchWithGame.Checked; SaveData(); RefreshRuntimeVisibility(); if (data.LaunchWithGame) GameLauncher.StartWatcher(); }
+        try { StartupRegistration.Configure(data.Current.StartWithWindows, launchWithGame.Checked); if (!launchWithGame.Checked) GameLauncher.StopWatcher(); data.GameExecutable = selected; data.LaunchWithGame = launchWithGame.Checked; SaveData(); RefreshRuntimeVisibility(); if (data.LaunchWithGame) GameLauncher.StartWatcher(); }
         catch (Exception ex) { DarkMessage.Show(this, ex.Message, "Game startup"); }
     }
     private Task CheckUpdates(bool manual) => updater.CheckAsync(this, manual, text => { if (!IsDisposed) updateStatus.Text = text; }, () => { allowExit = true; Close(); });
@@ -502,11 +509,10 @@ internal sealed class ControlWindow : Form
         if (initializing) return;
         try
         {
-            using var key = Registry.CurrentUser.OpenSubKey("Software\\Microsoft\\Windows\\CurrentVersion\\Run", true);
-            if (startup.Checked) key?.SetValue("SimpleAimOverlay", $"\"{Application.ExecutablePath}\""); else key?.DeleteValue("SimpleAimOverlay", false);
+            StartupRegistration.Configure(startup.Checked, data.LaunchWithGame);
             data.Current.StartWithWindows = startup.Checked; SaveData();
         }
-        catch { DarkMessage.Show(this, "Could not update the startup setting.", "Simple Aim Overlay", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+        catch { initializing = true; startup.Checked = data.Current.StartWithWindows; initializing = false; DarkMessage.Show(this, "Could not update the startup setting.", "Simple Aim Overlay", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
     }
     private void RemoveImage()
     {

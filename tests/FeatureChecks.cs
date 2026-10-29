@@ -9,6 +9,15 @@ internal static class FeatureChecks
     static void Assert(bool value,string reason){if(!value)throw new Exception(reason);}
     internal static void Run(){
         const BindingFlags fields=BindingFlags.Instance|BindingFlags.NonPublic;
+        var work=new Rectangle(-1920,40,1920,1040);
+        Assert(StyledDialog.CenteredLocation(new Size(520,320),work,work)==new Point(-1220,400),"Ownerless dialogs center on the selected monitor, including negative coordinates");
+        var edge=StyledDialog.CenteredLocation(new Size(520,320),new Rectangle(-100,900,400,300),work);
+        Assert(work.Contains(new Rectangle(edge,new Size(520,320))),"Dialogs stay inside the monitor working area near screen edges");
+        using(var owner=new Form{StartPosition=FormStartPosition.Manual,Bounds=new Rectangle(140,160,800,600)})using(var dialog=new StyledDialog{ClientSize=new Size(300,200)}) {
+            owner.Show();dialog.Show(owner);Application.DoEvents();
+            Assert(dialog.Location==StyledDialog.CenteredLocation(dialog.Size,owner.Bounds,Screen.FromControl(owner).WorkingArea),"Modeless update dialogs center on their owner");
+            dialog.Close();owner.Close();
+        }
         Assert(new StoreData().Theme=="dark","Existing installations retain the dark theme");
         Assert(JsonSerializer.Deserialize<StoreData>(JsonSerializer.Serialize(new StoreData{Theme="light"}))!.Theme=="light","Theme survives saving and loading");
         using(var root=new Form{BackColor=DarkTheme.Window,ForeColor=DarkTheme.Text}){

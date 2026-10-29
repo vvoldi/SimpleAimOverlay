@@ -13,7 +13,20 @@ internal class StyledDialog : Form
         FormBorderStyle = FormBorderStyle.FixedDialog; MinimizeBox=false; MaximizeBox=false;
         ShowInTaskbar=false; Padding=new Padding(24);
     }
-    protected override void OnShown(EventArgs e) { base.OnShown(e); UiText.Apply(this); RoundedUi.Apply(this); }
+    protected override void OnShown(EventArgs e) {
+        UiText.Apply(this); RoundedUi.Apply(this);
+        // CenterParent is ignored by modeless Show(owner), and setup dialogs
+        // often have no owner at all. Position explicitly after DPI/layout.
+        var owner=Owner;
+        bool hasOwner=owner!=null&&owner.Visible&&owner.WindowState!=FormWindowState.Minimized;
+        Rectangle work=hasOwner?Screen.FromControl(owner!).WorkingArea:Screen.FromPoint(Cursor.Position).WorkingArea;
+        Rectangle anchor=hasOwner?owner!.Bounds:work;
+        Location=CenteredLocation(Size,anchor,work);
+        base.OnShown(e);
+    }
+    internal static Point CenteredLocation(Size size,Rectangle anchor,Rectangle work) => new(
+        Math.Clamp(anchor.Left+(anchor.Width-size.Width)/2,work.Left,Math.Max(work.Left,work.Right-size.Width)),
+        Math.Clamp(anchor.Top+(anchor.Height-size.Height)/2,work.Top,Math.Max(work.Top,work.Bottom-size.Height)));
     protected override void OnHandleCreated(EventArgs e) { base.OnHandleCreated(e); DarkTheme.Caption(this); }
     protected Button ActionButton(string text, DialogResult result) {
         var b=new RoundedButton { Text=text, DialogResult=result, Width=110, Height=36, FlatStyle=FlatStyle.Flat, BackColor=DarkTheme.SurfaceHover, ForeColor=ForeColor };

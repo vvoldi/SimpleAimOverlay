@@ -39,7 +39,7 @@ internal static class DarkTheme
         if(control is Button button){button.FlatAppearance.BorderColor=Map(button.FlatAppearance.BorderColor);button.FlatAppearance.MouseOverBackColor=Map(button.FlatAppearance.MouseOverBackColor);if(button.Image!=null)button.Image=RecolorIcon(button.Image,from,to);}
         if(control is ToolStrip strip)foreach(ToolStripItem item in strip.Items){item.ForeColor=Text;item.BackColor=Surface;if(item.Image!=null)item.Image=RecolorIcon(item.Image,from,to);}
         if(control is Form form)Caption(form);
-        if(control is ScrollableControl)ScrollTheme(control);
+        if(control is ScrollableControl or TextBoxBase)ScrollTheme(control);
         foreach(Control child in control.Controls)Recolor(child,from,to);
         if(control is Form owner)foreach(Form owned in owner.OwnedForms)Recolor(owned,from,to);
         if(control.ContextMenuStrip!=null)Recolor(control.ContextMenuStrip,from,to);

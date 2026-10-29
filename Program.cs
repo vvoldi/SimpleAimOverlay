@@ -179,6 +179,7 @@ internal sealed class ControlWindow : Form
         root.Controls.Add(heading, 0, 0); root.SetColumnSpan(heading, 2);
         tabs.Dock = DockStyle.Fill;
         tabs.AddPage("Crosshair", "aim", MakeCrosshairTab()); tabs.AddPage("Editor", "edit", MakeLibraryTab()); tabs.AddPage("Settings", "settings", MakeSettingsTab());
+        tabs.AddPage("Feedback","feedback",new FeedbackPanel(()=>data));
         root.Controls.Add(tabs, 0, 1);
         var right = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Padding = new Padding(18, 10, 0, 0), BackColor = DarkTheme.Window };
         right.RowStyles.Add(new RowStyle(SizeType.Absolute, 32)); right.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); right.RowStyles.Add(new RowStyle(SizeType.Absolute, 112));

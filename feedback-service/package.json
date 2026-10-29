@@ -1,0 +1,1 @@
+{"name":"simple-aim-overlay-feedback","private":true,"type":"module","scripts":{"test":"node --test test/*.test.mjs","deploy":"wrangler deploy"},"devDependencies":{"wrangler":"^4.109.0"}}

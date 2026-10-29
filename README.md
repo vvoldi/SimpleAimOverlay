@@ -49,6 +49,15 @@ Click an image to view it at full size.
 
 ## Help
 
+<details>
+<summary>Feedback form</summary>
+
+[![Feedback form](docs/screenshots/feedback.png)](docs/screenshots/feedback.png)
+
+</details>
+
+**Feedback tab:** describe a bug or suggestion, review the automatically collected technical details, then confirm sending in your browser. No GitHub account is needed. Reports are public GitHub issues; you can exclude technical details before sending.
+
 Settings, drawings and backups stay in **%LOCALAPPDATA%\SimpleAimOverlay**. **Settings → Open update logs** opens download diagnostics; the displayed speed covers the last four seconds.
 
 [Report a problem](https://github.com/vvoldi/SimpleAimOverlay/issues) · [MIT license](LICENSE)

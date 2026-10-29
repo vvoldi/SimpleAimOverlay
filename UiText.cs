@@ -85,6 +85,20 @@ internal static class UiText
     internal static string T(string text)
     {
         if(Language!="uk")return text;
+        string? feedback=text switch {
+            "Feedback"=>"Відгук", "Bug report"=>"Повідомити про баг", "Suggestion"=>"Пропозиція",
+            "Report a bug or suggest an improvement"=>"Повідом про баг або запропонуй покращення",
+            "Describe what happened or what you would like to improve."=>"Опиши, що сталося або що хотілося б покращити.",
+            "Include technical details"=>"Додати технічні дані",
+            "Automatically adds app/Windows versions, display sizes and crosshair settings. No account name, file paths, drawings or logs."=>"Автоматично додає версії програми й Windows, розміри дисплеїв і параметри прицілу. Без імені акаунта, шляхів, малюнків та логів.",
+            "Your report will be public on GitHub. No GitHub account needed. Review and confirm in your browser before sending."=>"Звіт буде публічним на GitHub. Акаунт GitHub не потрібен. Перед надсиланням перевір і підтвердь звіт у браузері.",
+            "Preview report"=>"Переглянути звіт", "Continue to send"=>"Перейти до надсилання",
+            "Finish sending in your browser. Your text stays here."=>"Заверши надсилання у браузері. Текст залишається тут.",
+            "Please write between 10 and 2000 characters."=>"Напиши від 10 до 2000 символів.",
+            "Could not open the feedback page. Please try again."=>"Не вдалося відкрити сторінку відгуку. Спробуй ще раз.",
+            _=>null
+        };
+        if(feedback!=null)return feedback;
         if(text=="Theme")return "Тема";
         if(text=="Dark")return "Темна";
         if(text=="Light")return "Світла";

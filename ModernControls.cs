@@ -166,7 +166,7 @@ internal sealed class DarkTabHost : UserControl
 {
     private readonly FlowLayoutPanel navigation = new() { Dock = DockStyle.Top, Height = 46, WrapContents = false, FlowDirection = FlowDirection.LeftToRight, BackColor = DarkTheme.Window, Padding = new Padding(0, 0, 0, 0) };
     private readonly Panel content = new() { Dock = DockStyle.Fill, BackColor = DarkTheme.Surface };
-    private readonly List<(Button Button, Control Page)> pages = [];
+    private readonly List<(Button Button, Control Page, string Glyph)> pages = [];
     private int selected = -1;
 
     public DarkTabHost()
@@ -177,7 +177,7 @@ internal sealed class DarkTabHost : UserControl
     {
         int index = pages.Count; page.Dock = DockStyle.Fill; page.Visible = false; content.Controls.Add(page);
         var button = new NavigationButton { Text = title, Image = GlyphPainter.Create(glyph, 18), ImageAlign = ContentAlignment.MiddleLeft, TextImageRelation = TextImageRelation.ImageBeforeText, TextAlign = ContentAlignment.MiddleLeft, AutoSize = false, Width = 126, Height = 42, Margin = new Padding(0, 0, 5, 0), Padding = new Padding(14, 0, 10, 0), FlatStyle = FlatStyle.Flat, BackColor = DarkTheme.Window, ForeColor = DarkTheme.Muted, Font = AppFonts.Semibold(9.5f), Cursor = Cursors.Hand };
-        button.FlatAppearance.BorderSize = 0; button.FlatAppearance.MouseOverBackColor = DarkTheme.SurfaceHover; button.Click += (_, _) => SelectPage(index); navigation.Controls.Add(button); pages.Add((button, page));
+        button.FlatAppearance.BorderSize = 0; button.FlatAppearance.MouseOverBackColor = DarkTheme.SurfaceHover; button.Click += (_, _) => SelectPage(index); navigation.Controls.Add(button); pages.Add((button, page,glyph));
         if (selected < 0) SelectPage(0);
     }
     private void SelectPage(int index)
@@ -187,7 +187,7 @@ internal sealed class DarkTabHost : UserControl
         {
             bool active = i == selected; pages[i].Page.Visible = active; pages[i].Page.BringToFront();
             pages[i].Button.BackColor = active ? DarkTheme.Surface : DarkTheme.Window; pages[i].Button.ForeColor = active ? DarkTheme.Text : DarkTheme.Muted;
-            pages[i].Button.Image?.Dispose(); pages[i].Button.Image = GlyphPainter.Create(new[] { "aim", "edit", "settings" }[i % 3], 18, active ? DarkTheme.Accent : DarkTheme.Muted);
+            pages[i].Button.Image?.Dispose(); pages[i].Button.Image = GlyphPainter.Create(pages[i].Glyph, 18, active ? DarkTheme.Accent : DarkTheme.Muted);
         }
     }
 }
@@ -201,6 +201,7 @@ internal static class GlyphPainter
         float m = size * .18f, r = size - m * 2, cx = size / 2f, cy = size / 2f;
         switch (name)
         {
+            case "feedback": g.DrawRoundedRectangle(p,m,m,r,r*.7f,2);g.DrawLines(p,[new PointF(cx,m+r*.7f),new PointF(m+2,m+r),new PointF(m+2,m+r*.7f)]);g.DrawLine(p,m+3,cy-2,size-m-3,cy-2);break;
             case "aim": g.DrawEllipse(p, m + 2, m + 2, r - 4, r - 4); g.DrawLine(p, cx, m, cx, size * .37f); g.DrawLine(p, cx, size * .63f, cx, size - m); g.DrawLine(p, m, cy, size * .37f, cy); g.DrawLine(p, size * .63f, cy, size - m, cy); g.FillEllipse(b, cx - 1.5f, cy - 1.5f, 3, 3); break;
             case "library": for (int y = 0; y < 2; y++) for (int x = 0; x < 2; x++) g.DrawRoundedRectangle(p, m + x * (r / 2 + 1), m + y * (r / 2 + 1), r / 2 - 2, r / 2 - 2, 2); break;
             case "profiles": g.DrawEllipse(p, cx - r * .18f, m, r * .36f, r * .36f); g.DrawArc(p, m, cy - 1, r * .62f, r * .56f, 190, 160); g.DrawArc(p, cx - 2, cy, r * .68f, r * .52f, 190, 160); break;

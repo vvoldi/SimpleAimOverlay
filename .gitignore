@@ -11,3 +11,7 @@ obj/
 *.pem
 *.key
 dist/
+node_modules/
+.wrangler/
+.dev.vars*
+.env*

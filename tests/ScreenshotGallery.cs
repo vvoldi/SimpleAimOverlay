@@ -30,6 +30,8 @@ internal static class ScreenshotGallery
             theme.SelectedIndex=1;Save(main,"settings-light");
             typeof(DarkTabHost).GetMethod("SelectPage",flags)!.Invoke(tabs,[0]);Save(main,"crosshair-light");
             theme.SelectedIndex=0;
+            typeof(DarkTabHost).GetMethod("SelectPage",flags)!.Invoke(tabs,[3]);Save(main,"feedback");
+            language.SelectedIndex=1;Save(main,"feedback-uk");language.SelectedIndex=0;
             typeof(Form).GetMethod("OnFormClosing",flags)!.Invoke(main,[new FormClosingEventArgs(CloseReason.ApplicationExitCall,false)]);
         }
         UiText.Language="en";

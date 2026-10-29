@@ -9,6 +9,16 @@ internal static class FeatureChecks
     static void Assert(bool value,string reason){if(!value)throw new Exception(reason);}
     internal static void Run(){
         const BindingFlags fields=BindingFlags.Instance|BindingFlags.NonPublic;
+        var feedbackData=new StoreData{GameExecutable=@"C:\Users\PRIVATE_USER\SecretGame\game.exe",Current=new AimSettings{ImagePath=@"C:\Users\PRIVATE_USER\drawing.png",Monitor="PRIVATE_MONITOR",Shape="Image"}};
+        var feedback=FeedbackReport.Create("bug","Приціл зникає після перемикання.",feedbackData,144,true);
+        string feedbackJson=JsonSerializer.Serialize(feedback);
+        Assert(!feedbackJson.Contains("PRIVATE_")&&!feedbackJson.Contains("drawing.png")&&!feedbackJson.Contains("game.exe"),"Feedback must omit paths and identifying data");
+        Assert(feedback.Diagnostics["UI scale"]=="150%","Feedback collects current UI scale");
+        Assert(FeedbackReport.Create("suggestion","Please add another shape",feedbackData,96,false).Diagnostics.Count==0,"Technical details can be excluded");
+        var feedbackUrl=new Uri(feedback.Url("https://feedback.example"));
+        string encoded=feedbackUrl.Fragment[1..].Replace('-','+').Replace('_','/');encoded=encoded.PadRight((encoded.Length+3)/4*4,'=');
+        Assert(System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(encoded)).Contains("diagnostics"),"Feedback payload survives UTF-8 URL fragment encoding");
+        Assert(feedbackUrl.Query=="","Feedback is not placed in a server query string");
         var work=new Rectangle(-1920,40,1920,1040);
         Assert(StyledDialog.CenteredLocation(new Size(520,320),work,work)==new Point(-1220,400),"Ownerless dialogs center on the selected monitor, including negative coordinates");
         var edge=StyledDialog.CenteredLocation(new Size(520,320),new Rectangle(-100,900,400,300),work);

@@ -33,6 +33,9 @@ internal static class ScreenshotGallery
             typeof(Form).GetMethod("OnFormClosing",flags)!.Invoke(main,[new FormClosingEventArgs(CloseReason.ApplicationExitCall,false)]);
         }
         UiText.Language="en";
+        using(var update=new UpdateProgressWindow()) {
+            UiText.Language="uk";update.Show();_ = update.WaitForConfirmationAsync();Save(update,"update-ready-uk");update.Finish();UiText.Language="en";
+        }
         using(var editor=new PixelCrosshairEditor(null,Color.FromArgb(69,220,153))) {
             var canvas=(DrawingCanvas)typeof(PixelCrosshairEditor).GetField("canvas",flags)!.GetValue(editor)!;
             using(var g=Graphics.FromImage(canvas.Image)) {

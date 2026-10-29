@@ -5,23 +5,29 @@ namespace SimpleAimOverlay;
 internal sealed class UpdateProgressWindow : StyledDialog
 {
     private readonly Label headline = new() { Dock = DockStyle.Top, Height = 36, Text = "Connecting to GitHub…" };
-    private readonly Label detail = new() { Dock = DockStyle.Top, Height = 60, Text = "Preparing your update", AutoSize = false };
+    private readonly Label detail = new() { Dock = DockStyle.Top, Height = 68, Padding = new Padding(0,8,0,0), Text = "Preparing your update", AutoSize = false };
     private readonly DownloadBar bar = new() { Dock = DockStyle.Top, Height = 12, Margin = new Padding(0,12,0,12) };
     private readonly Button cancel;
     private readonly Button install;
+    private readonly TableLayoutPanel actions = new() { Dock=DockStyle.Bottom, Height=44, ColumnCount=1, RowCount=3, Margin=Padding.Empty, Padding=Padding.Empty };
     private TaskCompletionSource<bool>? confirmation;
     private bool downloading=true;
     private bool finished;
     public event Action? CancelRequested;
     public UpdateProgressWindow()
     {
-        Text="Updating Simple Aim Overlay";ClientSize=new Size(520,260);ShowInTaskbar=true;
-        cancel=ActionButton("Cancel",DialogResult.None);cancel.Dock=DockStyle.Bottom;
-        install=ActionButton("Update and restart",DialogResult.None);install.Dock=DockStyle.Bottom;install.Height=44;install.Visible=false;
+        Text="Updating Simple Aim Overlay";ClientSize=new Size(520,290);ShowInTaskbar=true;
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
+        actions.RowStyles.Add(new RowStyle(SizeType.Absolute,0));
+        actions.RowStyles.Add(new RowStyle(SizeType.Absolute,0));
+        actions.RowStyles.Add(new RowStyle(SizeType.Percent,100));
+        cancel=ActionButton("Cancel",DialogResult.None);cancel.Dock=DockStyle.Fill;cancel.Margin=Padding.Empty;
+        install=ActionButton("Update and restart",DialogResult.None);install.Dock=DockStyle.Fill;install.Margin=Padding.Empty;install.Visible=false;
+        actions.Controls.Add(install,0,0);actions.Controls.Add(cancel,0,2);
         install.Click+=(_,_)=>ConfirmInstall();
         cancel.Click+=(_,_)=>CancelDownload();
         FormClosing+=(_,e)=>{if(!finished){e.Cancel=true;CancelDownload();}};
-        Controls.Add(install);Controls.Add(cancel);Controls.Add(detail);Controls.Add(bar);Controls.Add(headline);
+        Controls.Add(actions);Controls.Add(detail);Controls.Add(bar);Controls.Add(headline);
     }
     private void CancelDownload(){cancel.Enabled=false;install.Enabled=false;headline.Text="Cancelling…";confirmation?.TrySetResult(false);CancelRequested?.Invoke();}
     internal Task<bool> WaitForConfirmationAsync()
@@ -29,7 +35,12 @@ internal sealed class UpdateProgressWindow : StyledDialog
         downloading=false;bar.Animated=false;bar.Percent=100;
         headline.Text="Ready to update";
         detail.Text="Download verified. Update and restart when you are ready. Your settings will be kept.";
-        cancel.Text="Not now";install.Visible=true;
+        cancel.Text="Not now";
+        // Use the already DPI-scaled cancel row as the height for both actions.
+        int buttonHeight=actions.Height, gap=(int)Math.Round(10*DeviceDpi/96d);
+        actions.Height=buttonHeight*2+gap;
+        actions.RowStyles[0].Height=buttonHeight;actions.RowStyles[1].Height=gap;
+        install.Visible=true;
         confirmation=new(TaskCreationOptions.RunContinuationsAsynchronously);
         return confirmation.Task;
     }

@@ -41,7 +41,22 @@ internal static class FeatureChecks
             var settings=new AimSettings{Thickness=step/10f,Size=32,Gap=7};
             using var image=new Bitmap(128,128);using(var g=Graphics.FromImage(image))AimRenderer.Draw(g,new Rectangle(0,0,128,128),settings,Color.Lime,Color.Black,false);
             double coverage=Enumerable.Range(60,9).Sum(y=>(int)image.GetPixel(78,y).A);
+            if(step<20)Assert(image.GetPixel(78,64).A==255,$"Thickness {settings.Thickness} retains an opaque center pixel");
             Assert(coverage>previous,$"Thickness {settings.Thickness} increases pixel coverage");previous=coverage;
+        }
+        using(var image=new Bitmap(128,128)){
+            foreach(Color background in new[]{Color.White,Color.Black}) {
+                using(var g=Graphics.FromImage(image)) {
+                    g.Clear(background);
+                    AimRenderer.Draw(g,new Rectangle(0,0,128,128),new AimSettings{Thickness=1.5f},Color.Lime,Color.Black,false);
+                }
+                Assert(image.GetPixel(78,64).ToArgb()==Color.Lime.ToArgb(),"Fractional stroke core has the same color on light and dark backgrounds");
+            }
+            using(var g=Graphics.FromImage(image)) {
+                g.Clear(Color.Transparent);
+                AimRenderer.Draw(g,new Rectangle(0,0,128,128),new AimSettings{Thickness=1.5f,Opacity=50},Color.Lime,Color.Black,false);
+            }
+            Assert(image.GetPixel(78,64).A is >=126 and <=128,"Explicit reduced opacity remains respected");
         }
         using(var image=new Bitmap(128,128)){
             var settings=new AimSettings{Thickness=1,Outline=true,OutlineWidth=3,OutlineOpacity=40};

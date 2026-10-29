@@ -686,11 +686,39 @@ internal static class AimRenderer
         int side=2*(int)Math.Ceiling((s.Size/2f+s.Gap+s.Thickness+s.OutlineWidth+4)*scale);
         side=Math.Clamp(side,8,1024);
         using var high=new Bitmap(side*10,side*10,PixelFormat.Format32bppPArgb);
-        using(var graphics=Graphics.FromImage(high))DrawCore(graphics,new Rectangle(0,0,high.Width,high.Height),s,color,outline,false,scale*10,true);
+        using(var graphics=Graphics.FromImage(high)) {
+            // Center the stroke inside a destination pixel, not between two rows.
+            graphics.TranslateTransform(5,5);
+            DrawCore(graphics,new Rectangle(0,0,high.Width,high.Height),s,color,outline,false,scale*10,true);
+        }
+        using var resolved=ResolveCoverage(high,10);
         var state=g.Save();
-        try {g.InterpolationMode=InterpolationMode.HighQualityBicubic;g.PixelOffsetMode=PixelOffsetMode.Half;
-            g.DrawImage(high,new RectangleF(bounds.Width/2f+s.OffsetX*scale-side/2f,bounds.Height/2f+s.OffsetY*scale-side/2f,side,side));
+        try {
+            // A second interpolation would blur the opaque core again.
+            g.DrawImageUnscaled(resolved,(int)MathF.Round(bounds.Width/2f+s.OffsetX*scale-side/2f),(int)MathF.Round(bounds.Height/2f+s.OffsetY*scale-side/2f));
         }finally{g.Restore(state);}
+    }
+    private static Bitmap ResolveCoverage(Bitmap source,int factor)
+    {
+        var result=new Bitmap(source.Width/factor,source.Height/factor,PixelFormat.Format32bppPArgb);
+        var input=source.LockBits(new Rectangle(0,0,source.Width,source.Height),ImageLockMode.ReadOnly,PixelFormat.Format32bppPArgb);
+        try {
+            var output=result.LockBits(new Rectangle(0,0,result.Width,result.Height),ImageLockMode.WriteOnly,PixelFormat.Format32bppPArgb);
+            try {
+                byte[] row=new byte[source.Width*4], resolved=new byte[result.Width*4];int[] sums=new int[resolved.Length];int samples=factor*factor;
+                for(int y=0;y<result.Height;y++) {
+                    Array.Clear(sums);
+                    for(int dy=0;dy<factor;dy++) {
+                        System.Runtime.InteropServices.Marshal.Copy(IntPtr.Add(input.Scan0,(y*factor+dy)*input.Stride),row,0,row.Length);
+                        for(int x=0;x<result.Width;x++)for(int dx=0;dx<factor;dx++)for(int c=0;c<4;c++)sums[x*4+c]+=row[(x*factor+dx)*4+c];
+                    }
+                    for(int i=0;i<resolved.Length;i++)resolved[i]=(byte)((sums[i]+samples/2)/samples);
+                    System.Runtime.InteropServices.Marshal.Copy(resolved,0,IntPtr.Add(output.Scan0,y*output.Stride),resolved.Length);
+                }
+            }finally{result.UnlockBits(output);}
+        }catch{result.Dispose();throw;}
+        finally{source.UnlockBits(input);}
+        return result;
     }
     private static void DrawCore(Graphics g, Rectangle bounds, AimSettings s, Color color, Color outline, bool preview, float? explicitScale=null, bool ignoreOffset=false)
     {

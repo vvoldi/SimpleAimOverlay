@@ -767,8 +767,11 @@ internal static class AimRenderer
         foreach(var rect in arms){core.Union(rect);var outer=rect;outer.Inflate(padding,padding);border.Union(outer);}
         if(s.Shape is "Cross + Dot" or "Predator"){
             int diameter=Math.Max(2,(int)MathF.Round(width*1.4f));
-            using var dot=new GraphicsPath();dot.AddEllipse(cx-diameter/2,cy-diameter/2,diameter,diameter);core.Union(dot);
-            using var outerDot=new GraphicsPath();outerDot.AddEllipse(cx-diameter/2-padding,cy-diameter/2-padding,diameter+2*padding,diameter+2*padding);border.Union(outerDot);
+            // Match parity: an even stroke is centered between pixels, while
+            // an odd stroke is centered on a pixel. The dot must use that same center.
+            if(diameter%2!=width%2)diameter++;
+            UnionPixelDisk(core,cx-diameter/2,cy-diameter/2,diameter);
+            UnionPixelDisk(border,cx-diameter/2-padding,cy-diameter/2-padding,diameter+2*padding);
         }
         int alpha=(int)Math.Clamp(color.A*s.Opacity/100f,0,255);
         var state=g.Save();
@@ -782,6 +785,17 @@ internal static class AimRenderer
             }
             using var fill=new SolidBrush(Color.FromArgb(alpha,color));g.FillRegion(fill,core);
         }finally{g.Restore(state);}
+    }
+    private static void UnionPixelDisk(Region region,int left,int top,int diameter)
+    {
+        // Rasterize mirrored pixel centers explicitly; GDI ellipse regions can
+        // round opposite edges differently on these very small circles.
+        for(int row=0;row<diameter;row++){
+            int dy=2*row+1-diameter,start=0;
+            while(start<diameter){int dx=2*start+1-diameter;if(dx*dx+dy*dy<=diameter*diameter)break;start++;}
+            int count=diameter-2*start;
+            if(count>0)region.Union(new Rectangle(left+start,top+row,count,1));
+        }
     }
     private static Bitmap ResolveCoverage(Bitmap source,int factor)
     {

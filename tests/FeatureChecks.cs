@@ -117,6 +117,20 @@ internal static class FeatureChecks
         var legacy=JsonSerializer.Deserialize<AimSettings>("{\"Thickness\":1}")!;
         Assert(legacy.Thickness==1&&legacy.Hotkey=="F8","Legacy integer configuration remains compatible");
         double previous=0;
+        foreach(bool preview in new[]{false,true})foreach(int thickness in new[]{1,2,3,4})foreach(bool outlined in new[]{false,true}){
+            var bounds=new Rectangle(10,12,310,465);
+            float scale=preview?310/230f:1;
+            int width=Math.Max(1,(int)MathF.Round(thickness*scale));
+            int cx=bounds.Left+(int)MathF.Floor(bounds.Width/2f+3*scale),cy=bounds.Top+(int)MathF.Floor(bounds.Height/2f-2*scale);
+            using var image=new Bitmap(340,500);
+            using(var g=Graphics.FromImage(image))AimRenderer.Draw(g,bounds,new AimSettings{Shape="Cross + Dot",Size=180,Thickness=thickness,Gap=5,OffsetX=3,OffsetY=-2,Outline=outlined,OutlineWidth=.5f},Color.Lime,Color.Black,preview);
+            // The center lies on a pixel for odd widths and between pixels for even widths.
+            int mirrorX=2*cx-(width%2==0?1:0),mirrorY=2*cy-(width%2==0?1:0);
+            for(int y=cy-4;y<=cy+3;y++)for(int x=cx-4;x<=cx+3;x++){
+                Assert(image.GetPixel(x,y).ToArgb()==image.GetPixel(mirrorX-x,mirrorY-y).ToArgb(),"Dot and outline share the crosshair center in preview and overlay");
+            }
+            Assert(image.GetPixel(cx,cy).G==255,"Centered dot is visible and opaque");
+        }
         foreach(int strokeWidth in new[]{1,2,3,4}) {
             using var crisp=new Bitmap(128,128);
             var settings=new AimSettings{Shape="Cross",Size=18,Thickness=strokeWidth,Gap=0};

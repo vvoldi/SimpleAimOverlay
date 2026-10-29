@@ -8,7 +8,7 @@ Run `Setup.exe` and approve the administrator prompt. The first installation ask
 
 - Choose a standard crosshair, or draw your own in **Editor** using pencil, lines, rectangles, ellipses, fill, symmetry and undo/redo.
 - **F8** toggles the crosshair. Holding **Right Mouse** temporarily hides it. Click either binding in Settings to record up to three keys, including mouse buttons.
-- **Settings** controls closing/minimizing to the tray and startup with Windows or a game. PUBG is the default game; choose another EXE with **Browse**. Game startup enables a small background watcher at Windows sign-in. Turn the option off to stop it.
+- **Settings** controls closing/minimizing to the tray and startup with Windows or a game. PUBG is the default game; choose another EXE with **Browse**. **Show only in the selected game** hides the crosshair on the desktop and in other apps, including after Alt+Tab. It also starts the overlay when that game launches, using a small background watcher at Windows sign-in. Turn the option off for unrestricted visibility and to stop the watcher.
 - In **Editor**, double-click a drawing to edit it, use **Ctrl + wheel** to zoom, and **Import / Export** to share a drawing (.aim preserves color mode; PNG works with other editors). Closing an edited drawing asks whether to save.
 - **Settings → Configuration** imports/exports settings with drawings. Updates keep your configuration and create a backup; importing a configuration keeps this PC's startup choices.
 - Updates are checked once at launch, or through **Settings → Check for updates**. Installation requires confirmation and may ask for administrator approval.

@@ -9,6 +9,16 @@ internal static class FeatureChecks
     static void Assert(bool value,string reason){if(!value)throw new Exception(reason);}
     internal static void Run(){
         const BindingFlags fields=BindingFlags.Instance|BindingFlags.NonPublic;
+        Assert(GameLauncher.ShouldShow(true,false,true,true),"Selected foreground game permits the crosshair");
+        Assert(!GameLauncher.ShouldShow(true,false,true,false),"Alt-tab or game exit hides a game-only crosshair");
+        Assert(GameLauncher.ShouldShow(true,false,false,false),"Disabling game-only mode allows desktop overlay");
+        Assert(!GameLauncher.ShouldShow(false,false,true,true),"Returning to the game does not undo the F8 off preference");
+        Assert(!GameLauncher.ShouldShow(true,true,true,true),"Hold-to-hide still works inside the selected game");
+        Assert(!GameLauncher.IsForegroundTarget(""),"An empty target cannot match the foreground window");
+        using(var overlay=new OverlayWindow()){
+            overlay.UpdateAim(new AimSettings{Visible=false},Color.Lime,Color.Black,Screen.PrimaryScreen!);
+            Assert(!overlay.Visible&&!overlay.IsHandleCreated,"Starting hidden never opens an empty fullscreen overlay");
+        }
         // Configuration buttons must fit even when the available width wraps them.
         foreach(int width in new[]{500,260}){
             using var host=new Form{ClientSize=new Size(width,240)};

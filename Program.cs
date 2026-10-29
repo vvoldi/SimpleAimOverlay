@@ -103,6 +103,8 @@ internal sealed class ControlWindow : Form
     private readonly System.Windows.Forms.Timer holdTimer = new() { Interval = 12 };
     private bool initializing = true;
     private bool holdDown, desiredVisible = true, allowExit, trayInteracting;
+    private bool runtimeStarted, gameForeground;
+    private long nextGameFocusCheck;
     private readonly DarkCheckBox minimizeToTray = new(), launchWithGame = new();
     private readonly TextBox gameExecutable = new() { BackColor = DarkTheme.Input, ForeColor = DarkTheme.Text, BorderStyle = BorderStyle.FixedSingle };
     private Color aimColor = Color.LimeGreen, borderColor = Color.FromArgb(16, 24, 32);
@@ -135,7 +137,7 @@ internal sealed class ControlWindow : Form
         Resize += (_, _) => { if (WindowState == FormWindowState.Minimized && data.MinimizeToTray) Hide(); };
         tray.DoubleClick += (_, _) => RestoreWindow();
         holdTimer.Tick += (_, _) => PollHoldKey();
-        Shown += async (_, _) => { RoundedUi.Apply(this); overlay.Show(); BindHotkey(); holdTimer.Start(); if (data.LaunchWithGame) GameLauncher.StartWatcher(); if (Environment.GetCommandLineArgs().Contains("--game")) Hide(); await CheckUpdates(false); };
+        Shown += async (_, _) => { RoundedUi.Apply(this); runtimeStarted = true; RefreshRuntimeVisibility(); BindHotkey(); holdTimer.Start(); if (data.LaunchWithGame) GameLauncher.StartWatcher(); if (Environment.GetCommandLineArgs().Contains("--game")) Hide(); await CheckUpdates(false); };
         FormClosing += (_, e) =>
         {
             if (!allowExit && e.CloseReason == CloseReason.UserClosing && data.MinimizeToTrayOnClose)
@@ -236,7 +238,7 @@ internal sealed class ControlWindow : Form
         closeToTray.Text = "Minimize to tray when closed"; closeToTray.AutoSize = true; AddRow(grid, "Close button", closeToTray);
         minimizeToTray.Text = "Minimize to tray with the − button"; AddRow(grid, "Minimize button", minimizeToTray);
         minimizeToTray.CheckedChanged += (_, _) => { if (!initializing) { data.MinimizeToTray = minimizeToTray.Checked; Store.Save(data); } };
-        launchWithGame.Text = "Start overlay when the game starts"; AddRow(grid, "Game startup", launchWithGame);
+        launchWithGame.Text = "Show only in the selected game"; AddRow(grid, "Selected game", launchWithGame);
         var browseGame = Button("Browse…", DarkTheme.SurfaceHover, DarkTheme.Text);
         var gameRow = GamePathRow.Create(gameExecutable, browseGame);
         browseGame.Click += (_, _) => { using var dialog = new OpenFileDialog { Title = "Select game executable", Filter = "Executable|*.exe", CheckFileExists = true }; if (dialog.ShowDialog(this) == DialogResult.OK) { gameExecutable.Text = dialog.FileName; SaveGameStartup(); } };
@@ -266,7 +268,7 @@ internal sealed class ControlWindow : Form
         if (initializing) return;
         string selected = gameExecutable.Text.Trim().Trim('"');
         if (launchWithGame.Checked && !GameLauncher.IsValidTarget(selected)) { DarkMessage.Show(this, "Choose an existing game EXE, or enter its process filename (for example TslGame.exe).", "Game startup"); return; }
-        try { GameLauncher.Configure(launchWithGame.Checked); data.GameExecutable = selected; data.LaunchWithGame = launchWithGame.Checked; Store.Save(data); if (data.LaunchWithGame) GameLauncher.StartWatcher(); }
+        try { GameLauncher.Configure(launchWithGame.Checked); data.GameExecutable = selected; data.LaunchWithGame = launchWithGame.Checked; Store.Save(data); RefreshRuntimeVisibility(); if (data.LaunchWithGame) GameLauncher.StartWatcher(); }
         catch (Exception ex) { DarkMessage.Show(this, ex.Message, "Game startup"); }
     }
     private Task CheckUpdates(bool manual) => updater.CheckAsync(this, manual, text => { if (!IsDisposed) updateStatus.Text = text; }, () => { allowExit = true; Close(); });
@@ -401,13 +403,16 @@ internal sealed class ControlWindow : Form
     {
         var runtimeSettings = Copy(data.Current);
         bool hiddenByHold = runtimeSettings.HideWhileHeld && holdDown;
-        runtimeSettings.Visible = runtimeSettings.Visible && !hiddenByHold;
-        overlay.UpdateAim(runtimeSettings, aimColor, borderColor, SelectedScreen());
+        gameForeground = !data.LaunchWithGame || GameLauncher.IsForegroundTarget(data.GameExecutable);
+        runtimeSettings.Visible = GameLauncher.ShouldShow(runtimeSettings.Visible, hiddenByHold, data.LaunchWithGame, gameForeground);
+        if (runtimeStarted) overlay.UpdateAim(runtimeSettings, aimColor, borderColor, SelectedScreen());
         status.Text = StatusText(hiddenByHold, runtimeSettings);
     }
     private string StatusText(bool? hidden = null, AimSettings? current = null)
     {
         current ??= data.Current;
+        if (data.Current.Visible && data.LaunchWithGame && !gameForeground)
+            return "Crosshair hidden · switch to " + Path.GetFileName(data.GameExecutable);
         hidden ??= current.HideWhileHeld && holdDown;
         string holdName = HoldKeyLabel(current.HoldKey);
         string aim = hidden.Value ? $"{holdName} held · crosshair hidden" : current.Visible ? $"{current.Hotkey} toggles · {holdName} temporarily hides" : $"Crosshair off · {current.Hotkey} toggles visibility";
@@ -421,6 +426,13 @@ internal sealed class ControlWindow : Form
     }
     private void PollHoldKey()
     {
+        // Check focus even while a dialog or tray menu is open. Never persist this
+        // temporary visibility change to the user's on/off preference.
+        if (Environment.TickCount64 >= nextGameFocusCheck) {
+            nextGameFocusCheck = Environment.TickCount64 + 100;
+            bool active = !data.LaunchWithGame || GameLauncher.IsForegroundTarget(data.GameExecutable);
+            if (active != gameForeground) RefreshRuntimeVisibility();
+        }
         bool toggleDown = KeyBindingButton.IsDown(data.Current.Hotkey);
         if (trayInteracting || tray.ContextMenuStrip?.Visible == true || OwnedForms.Any(f=>f.Visible) || (ContainsFocus && GetFocusedControl(this) is TextBoxBase)) { toggleWasDown=toggleDown; return; }
         if(toggleDown&&!toggleWasDown)ToggleVisible();
@@ -578,7 +590,7 @@ internal sealed class OverlayWindow : Form
         settings = s; color = c; outline = o; screen = target;
         if (Bounds != screen.Bounds) Bounds = screen.Bounds;
         TopMost = true;
-        if (s.Visible) { if (!Visible && IsHandleCreated) Show(); if (IsHandleCreated) { MaintainOverlay(); RenderLayered(); } }
+        if (s.Visible) { if (!Visible) Show(); if (IsHandleCreated) { MaintainOverlay(); RenderLayered(); } }
         else if (Visible) Hide();
     }
     protected override void OnShown(EventArgs e) { base.OnShown(e); MaintainOverlay(); RenderLayered(); topmostTimer.Start(); }

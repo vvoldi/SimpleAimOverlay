@@ -75,6 +75,22 @@ internal static class GameLauncher
         }
         return found;
     }
+    internal static bool IsForegroundTarget(string target)
+    {
+        if (string.IsNullOrWhiteSpace(target)) return false;
+        IntPtr window = GetForegroundWindow();
+        if (window == IntPtr.Zero) return false;
+        GetWindowThreadProcessId(window, out uint pid);
+        if (pid == 0) return false;
+        try {
+            using var process = Process.GetProcessById((int)pid);
+            return MatchesTarget(target, process.ProcessName, Path.IsPathFullyQualified(target) ? ReadPath(process.Id) : null);
+        } catch { return false; }
+    }
+    internal static bool ShouldShow(bool visible, bool hiddenByHold, bool gameOnly, bool gameForeground)
+        => visible && !hiddenByHold && (!gameOnly || gameForeground);
+    [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint pid);
     private static string? ReadPath(int pid)
     {
         IntPtr handle = OpenProcess(0x1000, false, pid);

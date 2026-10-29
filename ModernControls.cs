@@ -164,16 +164,16 @@ internal sealed class DarkComboBox : ComboBox
     }
     protected override void OnPaint(PaintEventArgs e) {
         e.Graphics.Clear(DarkTheme.Input);
-        TextRenderer.DrawText(e.Graphics, Text, Font, new Rectangle(10,0,Width-40,Height),DarkTheme.Text,TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis);
+        TextRenderer.DrawText(e.Graphics, UiText.T(Text), Font, new Rectangle(10,0,Width-40,Height),DarkTheme.Text,TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis);
         using var border=new Pen(Focused?DarkTheme.Accent:DarkTheme.Border);
         e.Graphics.SmoothingMode=SmoothingMode.AntiAlias; e.Graphics.DrawRoundedRectangle(border,new Rectangle(0,0,Width-1,Height-1),7);
         using var arrow=new Pen(DarkTheme.Muted,1.5f);int x=Width-14,y=Height/2;
         e.Graphics.DrawLines(arrow,new[]{new Point(x-4,y-2),new Point(x,y+2),new Point(x+4,y-2)});
     }    private void DrawItemDark(object? sender, DrawItemEventArgs e)
     {
-        if (e.Index < 0) { using var selectedBackground = new SolidBrush(DarkTheme.Input); e.Graphics.FillRectangle(selectedBackground, e.Bounds); TextRenderer.DrawText(e.Graphics, Text, Font, e.Bounds, DarkTheme.Text, TextFormatFlags.VerticalCenter | TextFormatFlags.Left); return; }
+        if (e.Index < 0) { using var selectedBackground = new SolidBrush(DarkTheme.Input); e.Graphics.FillRectangle(selectedBackground, e.Bounds); TextRenderer.DrawText(e.Graphics, UiText.T(Text), Font, e.Bounds, DarkTheme.Text, TextFormatFlags.VerticalCenter | TextFormatFlags.Left); return; }
         bool selected = (e.State & DrawItemState.Selected) != 0; using var itemBackground = new SolidBrush(selected ? DarkTheme.SurfaceHover : DarkTheme.Input); e.Graphics.FillRectangle(itemBackground, e.Bounds);
-        string text = GetItemText(Items[e.Index]) ?? string.Empty; TextRenderer.DrawText(e.Graphics, text, Font, Rectangle.Inflate(e.Bounds, -10, 0), DarkTheme.Text, TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+        string text = UiText.T(GetItemText(Items[e.Index]) ?? string.Empty); TextRenderer.DrawText(e.Graphics, text, Font, Rectangle.Inflate(e.Bounds, -10, 0), DarkTheme.Text, TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
     }
 }
 
@@ -263,7 +263,7 @@ internal static class DarkPrompt
         var cancel = new RoundedButton { Text = "Cancel", DialogResult = DialogResult.Cancel, Width = 92, Height = 34, FlatStyle = FlatStyle.Flat, BackColor = DarkTheme.SurfaceHover, ForeColor = DarkTheme.Text, Font = AppFonts.Semibold(9), Cursor = Cursors.Hand };
         cancel.FlatAppearance.BorderColor = DarkTheme.Border; buttons.Controls.Add(save); buttons.Controls.Add(cancel);
         form.Padding = new Padding(20, 14, 20, 12); form.Controls.Add(input); form.Controls.Add(label); form.Controls.Add(buttons); form.AcceptButton = save; form.CancelButton = cancel;
-        form.Shown += (_, _) => { input.Focus(); input.SelectAll(); };
+        form.Shown += (_, _) => { UiText.Apply(form); RoundedUi.Apply(form); input.Focus(); input.SelectAll(); };
         return form.ShowDialog(owner) == DialogResult.OK ? input.Text.Trim() : null;
     }
 }

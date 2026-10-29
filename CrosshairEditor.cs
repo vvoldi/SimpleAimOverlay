@@ -38,7 +38,7 @@ internal sealed class PixelCrosshairEditor : Form
         if (imagePath == null) canvas = new DrawingCanvas(new Bitmap(64, 64, PixelFormat.Format32bppArgb));
         else { using var source = Image.FromFile(imagePath); canvas = new DrawingCanvas(((Bitmap)source).Clone(new Rectangle(0,0,source.Width,source.Height),PixelFormat.Format32bppArgb)); }
         originalImage = (Bitmap)canvas.Image.Clone(); DrawingName = imagePath == null ? "My crosshair" : Path.GetFileNameWithoutExtension(imagePath);
-        Shown += (_, _) => { originalTint = tintToAim.Checked; RoundedUi.Apply(this); };
+        Shown += (_, _) => { originalTint = tintToAim.Checked; UiText.Apply(this); RoundedUi.Apply(this); };
         canvas.PenColor = color; alpha.Value = color.A;
         canvas.StrokeStarted += PushUndo;
         canvas.Changed += () => livePreview.Invalidate();
@@ -98,8 +98,8 @@ internal sealed class PixelCrosshairEditor : Form
     private void BuildEditorLayout()
     {
         var root = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1, Padding = new Padding(12), BackColor = DarkTheme.Window };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 144)); root.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); Controls.Add(root);
-        var toolbar = new FlowLayoutPanel { Dock = DockStyle.Fill, BackColor = DarkTheme.Surface, WrapContents = true, Padding = new Padding(4), AutoScroll = true };
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize)); root.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); Controls.Add(root);
+        var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, BackColor = DarkTheme.Surface, WrapContents = true, Padding = new Padding(4), AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
         var undoButton = MakeButton("Undo", false, "undo"); undoButton.Click += (_, _) => Undo(); toolbar.Controls.Add(undoButton);
         var redoButton = MakeButton("Redo", false, "redo"); redoButton.Click += (_, _) => Redo(); toolbar.Controls.Add(redoButton);
         var clear = MakeButton("Clear", false, "clear"); clear.Click += (_, _) => ClearCanvas(); toolbar.Controls.Add(clear);
@@ -120,10 +120,10 @@ internal sealed class PixelCrosshairEditor : Form
             dimensions.SelectedIndexChanged += (_, _) => { if (!syncingDimensions && dimensions.SelectedItem is string v) { int n = int.Parse(v.Split(' ')[0]); ResizeCanvas(n); } };
             toolbar.Controls.Add(new Label { Text = "Canvas", AutoSize = true, ForeColor = DarkTheme.Muted, Padding = new Padding(6, 9, 0, 0), BackColor = DarkTheme.Surface }); toolbar.Controls.Add(dimensions);
         }
-        var tools = new DarkComboBox { Width = 130 }; tools.Items.AddRange(["Pencil", "Line", "Rectangle", "Ellipse", "Fill", "Eyedropper"]); tools.SelectedIndex = 0;
+        var tools = new DarkComboBox { Width = 160 }; tools.Items.AddRange(["Pencil", "Line", "Rectangle", "Ellipse", "Fill", "Eyedropper"]); tools.SelectedIndex = 0;
         tools.SelectedIndexChanged += (_, _) => canvas.Tool = tools.SelectedItem?.ToString() ?? "Pencil"; toolbar.Controls.Add(tools);
-        var mirrorX = new DarkCheckBox { Text = "Mirror X", Width = 105 }; mirrorX.CheckedChanged += (_, _) => canvas.MirrorX = mirrorX.Checked; toolbar.Controls.Add(mirrorX);
-        var mirrorY = new DarkCheckBox { Text = "Mirror Y", Width = 105 }; mirrorY.CheckedChanged += (_, _) => canvas.MirrorY = mirrorY.Checked; toolbar.Controls.Add(mirrorY);
+        var mirrorX = new DarkCheckBox { Text = "Mirror X", Width = 135 }; mirrorX.CheckedChanged += (_, _) => canvas.MirrorX = mirrorX.Checked; toolbar.Controls.Add(mirrorX);
+        var mirrorY = new DarkCheckBox { Text = "Mirror Y", Width = 135 }; mirrorY.CheckedChanged += (_, _) => canvas.MirrorY = mirrorY.Checked; toolbar.Controls.Add(mirrorY);
         toolbar.Controls.Add(pixelValue);
         var save = MakeButton("Save drawing", true, "save"); save.Click += (_, _) => { if (PrepareSave()) { DialogResult = DialogResult.OK; Close(); } }; toolbar.Controls.Add(save);
         var cancel = MakeButton("Cancel", false); cancel.Click += (_, _) => { DialogResult = DialogResult.Cancel; Close(); }; toolbar.Controls.Add(cancel);

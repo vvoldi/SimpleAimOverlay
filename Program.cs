@@ -61,6 +61,7 @@ internal sealed class StoreData
     public bool MinimizeToTrayOnClose { get; set; } = true;
     public bool MinimizeToTray { get; set; }
     public bool LaunchWithGame { get; set; }
+    public string Language { get; set; } = "en";
     public string GameExecutable { get; set; } = GameLauncher.FindPubg();
 }
 
@@ -85,7 +86,7 @@ internal sealed class ControlWindow : Form
     private StoreData data = Store.Load();
     private readonly OverlayWindow overlay = new();
     private readonly DarkTabHost tabs = new();
-    private readonly DarkComboBox shape = new(), monitor = new();
+    private readonly DarkComboBox shape = new(), monitor = new(), language = new();
     private readonly KeyBindingButton hotkey = new(), holdKey = new();
     private bool toggleWasDown;
     private readonly DarkSlider outlineWidth = Slider(5, 100), outlineOpacity = Slider(0, 100);
@@ -122,6 +123,7 @@ internal sealed class ControlWindow : Form
 
     public ControlWindow()
     {
+        UiText.Language = data.Language == "uk" ? "uk" : "en";
         Text = "Simple Aim Overlay"; Icon = BrandIcon.Load(); MinimumSize = new Size(900, 660); Size = new Size(1120, 780);
         StartPosition = FormStartPosition.CenterScreen; Font = AppFonts.Regular(9.5f); BackColor = DarkTheme.Window;
         data.Images.RemoveAll(x => BundledCrosshairs.Contains(x, StringComparer.OrdinalIgnoreCase));
@@ -137,7 +139,7 @@ internal sealed class ControlWindow : Form
         Resize += (_, _) => { if (WindowState == FormWindowState.Minimized && data.MinimizeToTray) Hide(); };
         tray.DoubleClick += (_, _) => RestoreWindow();
         holdTimer.Tick += (_, _) => PollHoldKey();
-        Shown += async (_, _) => { RoundedUi.Apply(this); runtimeStarted = true; RefreshRuntimeVisibility(); BindHotkey(); holdTimer.Start(); if (data.LaunchWithGame) GameLauncher.StartWatcher(); if (Environment.GetCommandLineArgs().Contains("--game")) Hide(); await CheckUpdates(false); };
+        Shown += async (_, _) => { ApplyLanguage(); RoundedUi.Apply(this); runtimeStarted = true; RefreshRuntimeVisibility(); BindHotkey(); holdTimer.Start(); if (data.LaunchWithGame) GameLauncher.StartWatcher(); if (Environment.GetCommandLineArgs().Contains("--game")) Hide(); await CheckUpdates(false); };
         FormClosing += (_, e) =>
         {
             if (!allowExit && e.CloseReason == CloseReason.UserClosing && data.MinimizeToTrayOnClose)
@@ -230,6 +232,8 @@ internal sealed class ControlWindow : Form
     private Panel MakeSettingsTab()
     {
         var p = Page("Settings"); var grid = Grid(); p.Controls.Add(grid);
+        language.Items.AddRange(["English", "Українська"]); AddRow(grid, "Language", language);
+        language.SelectedIndexChanged += (_, _) => { if(initializing)return; data.Language=language.SelectedIndex==1?"uk":"en"; ApplyLanguage(); Store.Save(data); };
         visible.Text = "Show crosshair"; visible.AutoSize = true; AddRow(grid, "Visibility", visible);
         AddRow(grid, "Toggle hotkey", hotkey);
         hideWhileHeld.Text = "Hide while key is held"; hideWhileHeld.AutoSize = true; AddRow(grid, "Hold to hide", hideWhileHeld);
@@ -241,7 +245,7 @@ internal sealed class ControlWindow : Form
         launchWithGame.Text = "Show only in the selected game"; AddRow(grid, "Selected game", launchWithGame);
         var browseGame = Button("Browse…", DarkTheme.SurfaceHover, DarkTheme.Text);
         var gameRow = GamePathRow.Create(gameExecutable, browseGame);
-        browseGame.Click += (_, _) => { using var dialog = new OpenFileDialog { Title = "Select game executable", Filter = "Executable|*.exe", CheckFileExists = true }; if (dialog.ShowDialog(this) == DialogResult.OK) { gameExecutable.Text = dialog.FileName; SaveGameStartup(); } };
+        browseGame.Click += (_, _) => { using var dialog = new OpenFileDialog { Title = UiText.T("Select game executable"), Filter = UiText.T("Executable|*.exe"), CheckFileExists = true }; if (dialog.ShowDialog(this) == DialogResult.OK) { gameExecutable.Text = dialog.FileName; SaveGameStartup(); } };
         AddRow(grid, "Game EXE", gameRow);
         gameExecutable.Leave += (_, _) => { if (!launchWithGame.Checked || GameLauncher.IsValidTarget(gameExecutable.Text.Trim().Trim('"'))) SaveGameStartup(); };
         gameExecutable.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { SaveGameStartup(); e.SuppressKeyPress = true; } };
@@ -263,6 +267,17 @@ internal sealed class ControlWindow : Form
         return p;
     }
 
+    private void ApplyLanguage()
+    {
+        UiText.Language=data.Language=="uk"?"uk":"en";
+        UiText.Apply(this);
+        foreach(Form form in OwnedForms)UiText.Apply(form);
+        if(tray.ContextMenuStrip is { } menu) {
+            string[] names=["Open","Show / hide","Exit"];
+            for(int i=0;i<Math.Min(names.Length,menu.Items.Count);i++)menu.Items[i].Text=UiText.T(names[i]);
+        }
+        monitor.DropDownWidth=Math.Min(Screen.FromControl(this).WorkingArea.Width,Math.Max(monitor.Width,monitor.Items.Cast<MonitorItem>().Select(item=>TextRenderer.MeasureText(UiText.T(item.ToString()),monitor.Font).Width+48).DefaultIfEmpty(monitor.Width).Max()));
+    }
     private void SaveGameStartup()
     {
         if (initializing) return;
@@ -310,6 +325,7 @@ internal sealed class ControlWindow : Form
     private void LoadCurrent()
     {
         var s = data.Current;
+        language.SelectedIndex=data.Language=="uk"?1:0;
         shape.SelectedItem = Shapes.Contains(s.Shape) ? s.Shape : "Cross";
         if (s.Shape == "Image") s.TintImage = !data.OriginalColorImages.Contains(Path.GetFileName(s.ImagePath), StringComparer.OrdinalIgnoreCase);
         SetColor(s.Color, false); SetColor(s.OutlineColor, true);
@@ -327,7 +343,7 @@ internal sealed class ControlWindow : Form
     {
         var wanted = data.Current.Monitor; monitor.Items.Clear();
         foreach (var scr in Screen.AllScreens) monitor.Items.Add(new MonitorItem(scr, monitor.Items.Count + 1));
-        int textWidth = monitor.Items.Cast<MonitorItem>().Select(item => TextRenderer.MeasureText(item.ToString(), monitor.Font).Width + 48).DefaultIfEmpty(monitor.Width).Max();
+        int textWidth = monitor.Items.Cast<MonitorItem>().Select(item => TextRenderer.MeasureText(UiText.T(item.ToString()), monitor.Font).Width + 48).DefaultIfEmpty(monitor.Width).Max();
         monitor.DropDownWidth = Math.Min(Screen.FromControl(this).WorkingArea.Width, Math.Max(monitor.Width, textWidth));
         int i = Enumerable.Range(0, monitor.Items.Count).FirstOrDefault(k => ((MonitorItem)monitor.Items[k]!).Screen.DeviceName == wanted, -1);
         if (i < 0) i = Array.FindIndex(Screen.AllScreens, x => x.Primary);
@@ -490,7 +506,7 @@ internal sealed class ControlWindow : Form
         }
     }
     private void ImportDrawing() {
-        using var dialog=new OpenFileDialog{Filter="Crosshair drawing|*.aim;*.png",Title="Import drawing"};
+        using var dialog=new OpenFileDialog{Filter=UiText.T("Crosshair drawing|*.aim;*.png"),Title=UiText.T("Import drawing")};
         if(dialog.ShowDialog(this)!=DialogResult.OK)return;
         try {
             if(new FileInfo(dialog.FileName).Length>12_000_000)throw new InvalidDataException("Drawing is too large.");
@@ -501,7 +517,7 @@ internal sealed class ControlWindow : Form
     }
     private void ExportDrawing() {
         if(images.SelectedItem is not string name)return;
-        using var dialog=new SaveFileDialog{Filter="Shareable crosshair|*.aim|PNG image|*.png",FileName=Path.GetFileNameWithoutExtension(name),DefaultExt="aim"};
+        using var dialog=new SaveFileDialog{Filter=UiText.T("Shareable crosshair|*.aim|PNG image|*.png"),FileName=Path.GetFileNameWithoutExtension(name),DefaultExt="aim"};
         if(dialog.ShowDialog(this)!=DialogResult.OK)return;
         try {
             var drawing=ConfigurationTransfer.ReadDrawing(Path.Combine(Store.Root,"crosshairs",name),!data.OriginalColorImages.Contains(name));
@@ -511,14 +527,14 @@ internal sealed class ControlWindow : Form
     }
     private void TransferConfig(bool import) {
         using FileDialog dialog=import?new OpenFileDialog():new SaveFileDialog{FileName="SimpleAimOverlay.aimconfig"};
-        dialog.Filter="Aim Overlay configuration|*.aimconfig";dialog.DefaultExt="aimconfig";
+        dialog.Filter=UiText.T("Aim Overlay configuration|*.aimconfig");dialog.DefaultExt="aimconfig"; dialog.Title=UiText.T(import?"Import configuration":"Export configuration");
         if(dialog.ShowDialog(this)!=DialogResult.OK)return;
         try{
             if(!import){ConfigurationTransfer.Export(dialog.FileName,data);return;}
             var incoming=ConfigurationTransfer.Import(dialog.FileName);
             ConfigurationTransfer.Backup();
             incoming.Current.StartWithWindows=data.Current.StartWithWindows;incoming.LaunchWithGame=data.LaunchWithGame;incoming.GameExecutable=data.GameExecutable;
-            data=incoming;initializing=true;LoadCurrent();PopulateImages();initializing=false;Apply();
+            data=incoming;initializing=true;LoadCurrent();PopulateImages();initializing=false;ApplyLanguage();Apply();
         }catch(Exception ex){initializing=false;DarkMessage.Show(this,ex.Message,"Configuration");}
     }
     private void CreateImage() => OpenPixelEditor(null, "New crosshair");

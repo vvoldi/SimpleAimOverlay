@@ -20,6 +20,11 @@ internal static class Program
     static void Main(string[] args)
     {
         ApplicationConfiguration.Initialize();
+        try {
+            string settings=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"SimpleAimOverlay","settings.json");
+            using var json=System.Text.Json.JsonDocument.Parse(File.ReadAllText(settings));
+            if(json.RootElement.TryGetProperty("Language",out var language)&&language.GetString()=="uk")UiText.Language="uk";
+        }catch { }
         try
         {
             if (args.Any(a => a.Equals("/uninstall", StringComparison.OrdinalIgnoreCase))) { Uninstall(); return; }

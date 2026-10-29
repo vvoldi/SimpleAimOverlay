@@ -9,6 +9,27 @@ internal static class FeatureChecks
     static void Assert(bool value,string reason){if(!value)throw new Exception(reason);}
     internal static void Run(){
         const BindingFlags fields=BindingFlags.Instance|BindingFlags.NonPublic;
+        Assert(new StoreData().Language=="en","English is the default language");
+        Assert(JsonSerializer.Deserialize<StoreData>("{}")!.Language=="en","Older configurations keep English by default");
+        Assert(JsonSerializer.Deserialize<StoreData>(JsonSerializer.Serialize(new StoreData{Language="uk"}))!.Language=="uk","Language preference survives configuration save/load");
+        using(var panel=new Panel()) {
+            var label=new Label{Text="Settings"};var input=new TextBox{Text="Crosshair"};var binding=new KeyBindingButton{Binding="Right Mouse"};
+            var combo=new DarkComboBox();combo.Items.Add("Cross");combo.SelectedIndex=0;
+            panel.Controls.AddRange([label,input,binding,combo]);
+            try {
+                UiText.Language="uk";UiText.Apply(panel);
+                Assert(label.Text=="Налаштування","Static captions translate immediately");
+                Assert(input.Text=="Crosshair"&&binding.Binding=="Right Mouse"&&(string)combo.SelectedItem! == "Cross","User data and saved key/style identifiers stay unchanged");
+                label.Text="Checking for updates…";Assert(label.Text=="Перевіряю оновлення…","Live status updates are translated");
+                Assert(UiText.T("Crosshair hidden · switch to TslGame.exe").EndsWith("TslGame.exe"),"Dynamic target names are preserved");
+                Assert(UiText.T("You're up to date · 0.1.13").EndsWith("0.1.13"),"Dynamic versions are preserved");
+                UiText.Language="en";UiText.Apply(panel);Assert(label.Text=="Checking for updates…","Switching back restores the latest English caption");
+                if(Environment.GetEnvironmentVariable("SAO_RENDER_EDITOR_UK")=="1") {
+                    UiText.Language="uk";using var editor=new PixelCrosshairEditor(null,Color.Lime);editor.Show();Application.DoEvents();
+                    using var shot=new Bitmap(editor.Width,editor.Height);editor.DrawToBitmap(shot,new Rectangle(0,0,shot.Width,shot.Height));shot.Save(Path.Combine(Path.GetTempPath(),"SimpleAimOverlay-editor-uk.png"));editor.DialogResult=DialogResult.OK;editor.Close();
+                }
+            }finally{UiText.Language="en";}
+        }
         byte[] edid=new byte[128];new byte[]{0,255,255,255,255,255,255,0}.CopyTo(edid,0);edid[57]=0xfc;
         System.Text.Encoding.ASCII.GetBytes("My Monitor\n  ").CopyTo(edid,59);
         Assert(DisplayDetails.ReadEdidName(edid)=="My Monitor","Monitor name drops EDID padding and terminator");

@@ -8,6 +8,11 @@ internal class RoundedButton : Button
 {
     private bool hovered;
     public RoundedButton(){FlatStyle=FlatStyle.Flat;SetStyle(ControlStyles.UserPaint|ControlStyles.AllPaintingInWmPaint|ControlStyles.OptimizedDoubleBuffer,true);}
+    public override Size GetPreferredSize(Size proposedSize) {
+        var size=base.GetPreferredSize(proposedSize);
+        int width=TextRenderer.MeasureText(UiText.T(Text),Font).Width+Padding.Horizontal+12+(Image==null?0:Image.Width+6);
+        return new Size(Math.Max(size.Width,width),size.Height);
+    }
     protected override void OnMouseEnter(EventArgs e){base.OnMouseEnter(e);hovered=true;Invalidate();}
     protected override void OnMouseLeave(EventArgs e){base.OnMouseLeave(e);hovered=false;Invalidate();}
     protected override void OnPaint(PaintEventArgs e){
@@ -16,11 +21,12 @@ internal class RoundedButton : Button
         using var brush=new SolidBrush(fillColor);using var path=RoundedUi.Path(new Rectangle(0,0,Width-1,Height-1),8);e.Graphics.FillPath(brush,path);
         if(Focused&&FindForm()?.ContainsFocus==true){using var pen=new Pen(Color.FromArgb(69,220,153));e.Graphics.DrawPath(pen,path);}
         int imageWidth=Image?.Width??0;
-        int textWidth=TextRenderer.MeasureText(Text,Font).Width;
+        string caption=UiText.T(Text);
+        int textWidth=TextRenderer.MeasureText(caption,Font).Width;
         bool left=TextAlign is ContentAlignment.MiddleLeft or ContentAlignment.TopLeft or ContentAlignment.BottomLeft;
         int x=left?Math.Max(12,Padding.Left):Math.Max(6,(Width-textWidth-(imageWidth>0?imageWidth+6:0))/2);
         if(Image!=null){e.Graphics.DrawImage(Image,x,(Height-Image.Height)/2);x+=imageWidth+6;}
-        TextRenderer.DrawText(e.Graphics,Text,Font,new Rectangle(x,0,Math.Max(0,Width-x-6),Height),Enabled?ForeColor:Color.Gray,TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis);
+        TextRenderer.DrawText(e.Graphics,caption,Font,new Rectangle(x,0,Math.Max(0,Width-x-6),Height),Enabled?ForeColor:Color.Gray,TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis);
     }
 }
 

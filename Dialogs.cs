@@ -13,7 +13,7 @@ internal class StyledDialog : Form
         FormBorderStyle = FormBorderStyle.FixedDialog; MinimizeBox=false; MaximizeBox=false;
         ShowInTaskbar=false; Padding=new Padding(24);
     }
-    protected override void OnShown(EventArgs e) { base.OnShown(e); RoundedUi.Apply(this); }
+    protected override void OnShown(EventArgs e) { base.OnShown(e); UiText.Apply(this); RoundedUi.Apply(this); }
     protected override void OnHandleCreated(EventArgs e) { base.OnHandleCreated(e); int dark=1; DwmSetWindowAttribute(Handle,20,ref dark,4); }
     protected Button ActionButton(string text, DialogResult result) {
         var b=new RoundedButton { Text=text, DialogResult=result, Width=110, Height=36, FlatStyle=FlatStyle.Flat, BackColor=Color.FromArgb(34,43,55), ForeColor=ForeColor };

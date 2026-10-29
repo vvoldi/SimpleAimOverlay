@@ -37,13 +37,16 @@ internal static class Program
     static void Install(int? parent)
     {
         var result = parent.HasValue ? DialogResult.Yes : DarkMessage.Show(
-            "This is a self-signed Simple Aim Overlay 0.2.1 build.\n\n" +
+            "This is a self-signed Simple Aim Overlay 0.2.2 build.\n\n" +
             "Setup will add the SimpleAimOverlay test certificate to this PC's trusted certificate stores " +
             "and install the app in Program Files (required for UIAccess).\n\n" +
             "Only continue if you trust the package source. This build does not include a DXGI hook.\n\n" +
             "Continue? Windows will ask for administrator approval.",
             Product, MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
         if (result != DialogResult.Yes) return;
+
+        using var progress=new SetupProgress();
+        progress.Show();progress.Report("Closing the app…",5);
 
         if (parent.HasValue) {
             try {
@@ -64,24 +67,27 @@ internal static class Program
             catch (ArgumentException) { /* The app already exited. */ }
         }
         StopGameWatcher();
+        progress.Report("Preparing installation…",20);
         Directory.CreateDirectory(InstallDir);
         var certBytes = ReadResource("test.cer");
         var cert = X509CertificateLoader.LoadCertificate(certBytes);
         if (!cert.Thumbprint!.Equals(CertThumb, StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("The bundled certificate failed its thumbprint check.");
         AddToStore(StoreName.Root, cert);
         AddToStore(StoreName.TrustedPublisher, cert);
+        progress.Report("Installing application files…",40);
         string target = Path.Combine(InstallDir, AppExe), staging = target + ".new";
         File.WriteAllBytes(staging, ReadResource("payload.exe"));
         if (File.Exists(target)) File.Replace(staging, target, null); else File.Move(staging, target);
         string uninstallerPath = Path.Combine(InstallDir, "Uninstall-" + Guid.NewGuid().ToString("N") + ".exe");
         string runningSetup = Environment.ProcessPath ?? throw new InvalidOperationException("Could not locate the setup executable.");
         File.WriteAllBytes(uninstallerPath, File.ReadAllBytes(runningSetup));
+        progress.Report("Updating shortcuts…",75);
         string oldShortcut=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms),"SimpleAimOverlay Test.lnk"); if(File.Exists(oldShortcut))File.Delete(oldShortcut);
         CreateShortcut(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms), Product + ".lnk"), Path.Combine(InstallDir, AppExe));
         using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\SimpleAimOverlayTest"))
         {
             key.SetValue("DisplayName", Product);
-            key.SetValue("DisplayVersion", "0.2.1");
+            key.SetValue("DisplayVersion", "0.2.2");
             key.SetValue("Publisher", "SimpleAimOverlay contributors (local test certificate)");
             key.SetValue("InstallLocation", InstallDir);
             key.SetValue("DisplayIcon", Path.Combine(InstallDir, AppExe));
@@ -89,6 +95,7 @@ internal static class Program
             key.SetValue("NoModify", 1, RegistryValueKind.DWord); key.SetValue("NoRepair", 1, RegistryValueKind.DWord);
         }
         RestoreGameWatcher();
+        progress.Report("Installation complete. Restarting…",100);
         if (parent.HasValue || DarkMessage.Show("Installation is complete. Launch Simple Aim Overlay now?", Product, MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
             Process.Start(new ProcessStartInfo(Path.Combine(InstallDir, AppExe)) { UseShellExecute = true });
     }

@@ -4,7 +4,7 @@
     <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><AssemblyName>SimpleAimOverlay-Setup</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest><PublishSingleFile>true</PublishSingleFile><SelfContained>true</SelfContained>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract><EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
-    <Version>0.2.1</Version><Product>Simple Aim Overlay Setup</Product>
+    <Version>0.2.2</Version><Product>Simple Aim Overlay Setup</Product>
     <ApplicationIcon>..\..\Assets\simple-aim-overlay.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup><Compile Include="../../AppFonts.cs" Link="AppFonts.cs" /><EmbeddedResource Include="../../Assets/Fonts/Inter-Variable.ttf" LogicalName="SimpleAimOverlay.Assets.Fonts.Inter-Variable.ttf" /><Compile Include="../../Dialogs.cs" Link="Dialogs.cs" />

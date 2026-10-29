@@ -9,6 +9,15 @@ internal static class FeatureChecks
     static void Assert(bool value,string reason){if(!value)throw new Exception(reason);}
     internal static void Run(){
         const BindingFlags fields=BindingFlags.Instance|BindingFlags.NonPublic;
+        using(var progress=new UpdateProgressWindow()) {
+            progress.Show();var decision=progress.WaitForConfirmationAsync();Application.DoEvents();
+            Assert(!decision.IsCompleted,"Verified download must wait for explicit confirmation");
+            progress.ConfirmInstall();Assert(decision.Result,"Install button authorizes restart");progress.Finish();
+        }
+        using(var progress=new UpdateProgressWindow()) {
+            progress.Show();var decision=progress.WaitForConfirmationAsync();progress.Close();
+            Assert(decision.IsCompleted&&!decision.Result,"Closing ready window must not authorize installation");progress.Finish();
+        }
         using(var owner=new Form())using(var progress=new UpdateProgressWindow()) {
             owner.Show();progress.Show(owner);Application.DoEvents();owner.Close();
             Assert(!owner.IsDisposed,"Reproduce old update failure: unfinished owned progress cancels owner close");

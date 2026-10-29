@@ -2,13 +2,13 @@
 
 A customizable crosshair for **Windows 10/11, 64-bit**. English and Ukrainian. No account required.
 
-**[Download 0.2.1 — Windows installer](https://github.com/vvoldi/SimpleAimOverlay/releases/download/v0.2.1/SimpleAimOverlay-0.2.1-Setup.exe)** · [All releases](https://github.com/vvoldi/SimpleAimOverlay/releases)
+**[Download 0.2.2 — Windows installer](https://github.com/vvoldi/SimpleAimOverlay/releases/download/v0.2.2/SimpleAimOverlay-0.2.2-Setup.exe)** · [All releases](https://github.com/vvoldi/SimpleAimOverlay/releases)
 
 ## Install & update
 
 Run the EXE and approve the administrator prompt. On first installation, setup adds this project's **self-signed certificate** to your PC's trusted stores. Only install if you trust the source; Windows may show an unknown-publisher warning.
 
-Updates are checked **once at launch**, or manually in **Settings → Check for updates**. Your settings and drawings are kept; the updater also saves a configuration backup before installation. Exit the app through its tray menu before a manual update.
+Updates are checked **once at launch**, or manually in **Settings → Check for updates**. After downloading and verifying the package, choose **Update and restart** to install it, or **Not now** to keep working. Download progress, verification and installation stages are shown. Your settings and drawings are kept; the updater also saves a configuration backup before installation. Exit the app through its tray menu before a manual update.
 
 ## Make it yours
 

@@ -51,7 +51,7 @@ internal sealed class AppUpdater : IDisposable
             if (release == null) { status("No compatible update package is available."); return; }
             if (release.Version <= CurrentVersion) { status("You're up to date · " + CurrentVersion.ToString(3)); return; }
             status("Update available · " + release.Version.ToString(3));
-            if (owner.IsDisposed || DarkMessage.Show(owner,$"Version {release.Version.ToString(3)} is available. Download and install it now?\n\nYour settings will be kept. Windows may ask for administrator approval.","Update available",MessageBoxButtons.YesNo) != DialogResult.Yes) return;
+            if (owner.IsDisposed || DarkMessage.Show(owner,$"Version {release.Version.ToString(3)} is available. Download it now?\n\nYou will confirm installation after the download. Your settings will be kept.","Update available",MessageBoxButtons.YesNo) != DialogResult.Yes) return;
             string directory = Path.Combine(Path.GetTempPath(),"SimpleAimOverlay-update-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(directory);
             file = Path.Combine(directory,"Setup.exe");
             using var downloadTimeout = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
@@ -59,15 +59,23 @@ internal sealed class AppUpdater : IDisposable
             progressWindow = new UpdateProgressWindow();
             progressWindow.CancelRequested += () => downloadTimeout.Cancel();
             progressWindow.Show(owner);
+            bool downloading=true;
             var progress = new Progress<DownloadProgress>(p => {
-                if (owner.IsDisposed) return;
+                if (!downloading || owner.IsDisposed || progressWindow == null || progressWindow.IsDisposed) return;
                 status($"Downloading update… {p.Received * 100 / Math.Max(1,p.Total)}%");
                 progressWindow.Report(p);
             });
             await DownloadAsync(release, file, progress, downloadTimeout.Token);
+            downloading=false;
             status("Verifying update…"); progressWindow.SetStage("Verifying update…");
             await VerifyAsync(file, release.Digest, downloadTimeout.Token);
             downloadTimeout.Token.ThrowIfCancellationRequested();
+            downloadTimeout.CancelAfter(Timeout.InfiniteTimeSpan);
+            status("Ready to update");
+            if(!await progressWindow.WaitForConfirmationAsync().WaitAsync(lifetime.Token)) {
+                status("Update cancelled. You can try again in Settings.");return;
+            }
+            lifetime.Token.ThrowIfCancellationRequested();
             ConfigurationTransfer.Backup();
             progressWindow.SetStage("Waiting for Windows approval…");
             var start = new ProcessStartInfo(file) { UseShellExecute=true, Verb="runas" };

@@ -59,6 +59,13 @@ internal static class UiText
         ["Checking for updates…"]="Перевіряю оновлення…", ["No compatible update package is available."]="Сумісних оновлень поки немає.",
         ["Update available"]="Доступне оновлення", ["Connecting to GitHub…"]="Підключення до GitHub…",
         ["Preparing your update"]="Підготовка оновлення", ["Updating Simple Aim Overlay"]="Оновлення Simple Aim Overlay",
+        ["Update and restart"]="Оновити й перезапустити", ["Not now"]="Не зараз",
+        ["Ready to update"]="Готово до оновлення",
+        ["Download verified. Update and restart when you are ready. Your settings will be kept."]="Файл перевірено. Підтвердь оновлення й перезапуск, коли будеш готовий. Налаштування буде збережено.",
+        ["Please wait. The app will restart automatically."]="Зачекай. Програма перезапуститься автоматично.",
+        ["Closing the app…"]="Закриття програми…", ["Preparing installation…"]="Підготовка встановлення…",
+        ["Installing application files…"]="Встановлення файлів програми…", ["Updating shortcuts…"]="Оновлення ярликів…",
+        ["Installation complete. Restarting…"]="Встановлення завершено. Перезапуск…",
         ["Cancelling…"]="Скасування…", ["Verifying update…"]="Перевірка файлу оновлення…",
         ["Waiting for Windows approval…"]="Очікування підтвердження Windows…", ["Keep the app open. Your settings will be preserved."]="Не закривай програму. Налаштування буде збережено.",
         ["Update check timed out or was cancelled."]="Час очікування вичерпано або перевірку скасовано.",
@@ -90,7 +97,7 @@ internal static class UiText
             return text.Replace("Right Mouse","ПКМ").Replace("Left Mouse","ЛКМ").Replace("Middle Mouse","Середня кнопка миші");
         }
         if(text.Contains(" MB/s (last 4s)"))return text.Replace(" MB/s (last 4s)"," МБ/с (останні 4 с)").Replace(" MB"," МБ").Replace(" · about "," · залишилося приблизно ").Replace(" remaining","");
-        if(text.Contains(" is available. Download and install it now?"))return Regex.Replace(text,@"^Version (.+?) is available\. Download and install it now\?", "Доступна версія $1. Завантажити та встановити?").Replace("Your settings will be kept. Windows may ask for administrator approval.","Налаштування буде збережено. Windows може запросити права адміністратора.");
+        if(text.Contains(" is available. Download it now?"))return Regex.Replace(text,@"^Version (.+?) is available\. Download it now\?", "Доступна версія $1. Завантажити?").Replace("You will confirm installation after the download. Your settings will be kept.","Після завантаження ти зможеш підтвердити встановлення. Налаштування буде збережено.");
         if(text.StartsWith("This is a self-signed Simple Aim Overlay "))return Regex.Replace(text,@"^This is a self-signed Simple Aim Overlay ([^.]+\.[^.]+\.[^ ]+) build\.","Це збірка Simple Aim Overlay $1 із самопідписаним сертифікатом.")
             .Replace("Setup will add the SimpleAimOverlay test certificate to this PC's trusted certificate stores and install the app in Program Files (required for UIAccess).","Інсталятор додасть тестовий сертифікат SimpleAimOverlay до довірених сховищ цього ПК та встановить програму в Program Files (потрібно для UIAccess).")
             .Replace("Only continue if you trust the package source. This build does not include a DXGI hook.","Продовжуй лише якщо довіряєш джерелу інсталятора. Ця збірка не містить DXGI hook.")

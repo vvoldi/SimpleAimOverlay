@@ -204,10 +204,10 @@ internal sealed class ControlWindow : Form
     private Panel MakeLibraryTab()
     {
         var p = Page("Editor"); var layout = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 1, BackColor = DarkTheme.Surface };
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42)); layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48)); p.Controls.Add(layout);
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42)); layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); layout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); p.Controls.Add(layout);
         layout.Controls.Add(new Label { Text = "Your drawings. Create a crosshair or edit one you saved. Standard styles are in Crosshair.", ForeColor = DarkTheme.Muted, BackColor = DarkTheme.Surface, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
         images.Dock = DockStyle.Fill; images.IntegralHeight = false; images.BackColor = DarkTheme.Card; images.ForeColor = DarkTheme.Text; images.BorderStyle = BorderStyle.None; images.DrawMode = DrawMode.OwnerDrawFixed; images.ItemHeight = 72; images.DrawItem += DrawCrosshairItem; images.ItemDoubleClick += (_, _) => EditImage(); layout.Controls.Add(images, 0, 1);
-        var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight };
+        var buttons = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, FlowDirection = FlowDirection.LeftToRight };
         buttons.BackColor = DarkTheme.Surface;
         var create = Button("New", DarkTheme.Accent, DarkTheme.Window); create.Click += (_, _) => CreateImage(); buttons.Controls.Add(create);
         var edit = Button("Edit", DarkTheme.SurfaceHover, DarkTheme.Text); edit.Click += (_, _) => EditImage(); buttons.Controls.Add(edit);
@@ -273,10 +273,16 @@ internal sealed class ControlWindow : Form
     private TableLayoutPanel Grid() => new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 2, RowCount = 0, Padding = new Padding(0, 2, 4, 2), BackColor = DarkTheme.Surface }.Also(g => { g.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150)); g.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); });
     private static void AddRow(TableLayoutPanel grid, string label, Control control)
     {
-        int row = grid.RowCount++; grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 45));
+        // Nested button margins count towards the row height, including wrapped rows.
+        bool flowing = control is FlowLayoutPanel;
+        int row = grid.RowCount++; grid.RowStyles.Add(flowing ? new RowStyle(SizeType.AutoSize) : new RowStyle(SizeType.Absolute, 45));
         var l = new Label { Text = label, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = DarkTheme.Muted, BackColor = DarkTheme.Surface };
         control.BackColor = control is Button ? control.BackColor : DarkTheme.Input; control.ForeColor = control is Button ? control.ForeColor : DarkTheme.Text;
         control.Dock = DockStyle.Fill; grid.Controls.Add(l, 0, row); grid.Controls.Add(control, 1, row);
+        if (control is FlowLayoutPanel flow) {
+            flow.AutoSize = true; flow.AutoSizeMode = AutoSizeMode.GrowAndShrink; flow.Dock = DockStyle.Top;
+            flow.MinimumSize = new Size(0, 39);
+        }
     }
     private void AddSliderRow(TableLayoutPanel g, string label, DarkSlider bar, Func<AimSettings, int> get, string key)
     {

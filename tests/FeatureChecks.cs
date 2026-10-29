@@ -9,6 +9,21 @@ internal static class FeatureChecks
     static void Assert(bool value,string reason){if(!value)throw new Exception(reason);}
     internal static void Run(){
         const BindingFlags fields=BindingFlags.Instance|BindingFlags.NonPublic;
+        // Configuration buttons must fit even when the available width wraps them.
+        foreach(int width in new[]{500,260}){
+            using var host=new Form{ClientSize=new Size(width,240)};
+            var grid=new TableLayoutPanel{Dock=DockStyle.Top,AutoSize=true,ColumnCount=2};
+            grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,150));grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));host.Controls.Add(grid);
+            var flow=new FlowLayoutPanel();
+            foreach(string text in new[]{"Export","Import"})flow.Controls.Add(new RoundedButton{Text=text,Size=new Size(90,38),Margin=new Padding(0,4,8,4)});
+            var addRow=typeof(ControlWindow).GetMethod("AddRow",BindingFlags.NonPublic|BindingFlags.Static)!;
+            addRow.Invoke(null,[grid,"Configuration",flow]);
+            var next=new Button{Text="Open update logs"};addRow.Invoke(null,[grid,"Diagnostics",next]);
+            host.Show();Application.DoEvents();
+            foreach(Control button in flow.Controls)Assert(button.Bottom+button.Margin.Bottom<=flow.ClientSize.Height,"Button and bottom margin fit inside configuration row");
+            Assert(flow.Bottom<=next.Top,"Following row cannot overlap configuration buttons");
+            host.Close();
+        }
         var legacy=JsonSerializer.Deserialize<AimSettings>("{\"Thickness\":1}")!;
         Assert(legacy.Thickness==1&&legacy.Hotkey=="F8","Legacy integer configuration remains compatible");
         double previous=0;

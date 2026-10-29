@@ -326,7 +326,9 @@ internal sealed class ControlWindow : Form
     private void PopulateMonitors()
     {
         var wanted = data.Current.Monitor; monitor.Items.Clear();
-        foreach (var scr in Screen.AllScreens) monitor.Items.Add(new MonitorItem(scr));
+        foreach (var scr in Screen.AllScreens) monitor.Items.Add(new MonitorItem(scr, monitor.Items.Count + 1));
+        int textWidth = monitor.Items.Cast<MonitorItem>().Select(item => TextRenderer.MeasureText(item.ToString(), monitor.Font).Width + 48).DefaultIfEmpty(monitor.Width).Max();
+        monitor.DropDownWidth = Math.Min(Screen.FromControl(this).WorkingArea.Width, Math.Max(monitor.Width, textWidth));
         int i = Enumerable.Range(0, monitor.Items.Count).FirstOrDefault(k => ((MonitorItem)monitor.Items[k]!).Screen.DeviceName == wanted, -1);
         if (i < 0) i = Array.FindIndex(Screen.AllScreens, x => x.Primary);
         if (i >= 0 && i < monitor.Items.Count) monitor.SelectedIndex = i;
@@ -547,7 +549,11 @@ internal sealed class ControlWindow : Form
     private static AimSettings Copy(AimSettings x) => JsonSerializer.Deserialize<AimSettings>(JsonSerializer.Serialize(x)) ?? new AimSettings();
     private void RestoreWindow() { Show(); WindowState = FormWindowState.Normal; Activate(); }
 
-    private sealed class MonitorItem(Screen screen) { public Screen Screen { get; } = screen; public override string ToString() => $"{(Screen.Primary ? "Primary · " : "")}{Screen.DeviceName}  ({Screen.Bounds.Width} × {Screen.Bounds.Height})"; }
+    private sealed class MonitorItem(Screen screen, int number) {
+        public Screen Screen { get; } = screen;
+        private readonly string label = DisplayDetails.Describe(screen,number);
+        public override string ToString() => label;
+    }
 }
 
 internal sealed class OverlayWindow : Form

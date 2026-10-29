@@ -9,6 +9,15 @@ internal static class FeatureChecks
     static void Assert(bool value,string reason){if(!value)throw new Exception(reason);}
     internal static void Run(){
         const BindingFlags fields=BindingFlags.Instance|BindingFlags.NonPublic;
+        byte[] edid=new byte[128];new byte[]{0,255,255,255,255,255,255,0}.CopyTo(edid,0);edid[57]=0xfc;
+        System.Text.Encoding.ASCII.GetBytes("My Monitor\n  ").CopyTo(edid,59);
+        Assert(DisplayDetails.ReadEdidName(edid)=="My Monitor","Monitor name drops EDID padding and terminator");
+        Assert(DisplayDetails.ReadEdidName(new byte[4])==null&&DisplayDetails.ReadEdidName(new byte[128])==null,"Missing monitor metadata has a safe fallback");
+        foreach(var screen in Screen.AllScreens) {
+            string description=DisplayDetails.Describe(screen,1);
+            Assert(!description.Contains('\\')&&description.Contains('×'),"Monitor labels are readable without raw Windows device paths");
+            Console.WriteLine("Display: "+description);
+        }
         Assert(GameLauncher.ShouldShow(true,false,true,true),"Selected foreground game permits the crosshair");
         Assert(!GameLauncher.ShouldShow(true,false,true,false),"Alt-tab or game exit hides a game-only crosshair");
         Assert(GameLauncher.ShouldShow(true,false,false,false),"Disabling game-only mode allows desktop overlay");

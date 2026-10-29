@@ -279,7 +279,9 @@ internal sealed class ControlWindow : Form
         bool flowing = control is FlowLayoutPanel;
         int row = grid.RowCount++; grid.RowStyles.Add(flowing ? new RowStyle(SizeType.AutoSize) : new RowStyle(SizeType.Absolute, 45));
         var l = new Label { Text = label, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = DarkTheme.Muted, BackColor = DarkTheme.Surface };
-        control.BackColor = control is Button ? control.BackColor : DarkTheme.Input; control.ForeColor = control is Button ? control.ForeColor : DarkTheme.Text;
+        // Layout containers share the page background; only inputs need a dark fill.
+        control.BackColor = control is Button ? control.BackColor : control is FlowLayoutPanel or TableLayoutPanel ? DarkTheme.Surface : DarkTheme.Input;
+        control.ForeColor = control is Button ? control.ForeColor : DarkTheme.Text;
         control.Dock = DockStyle.Fill; grid.Controls.Add(l, 0, row); grid.Controls.Add(control, 1, row);
         if (control is FlowLayoutPanel flow) {
             flow.AutoSize = true; flow.AutoSizeMode = AutoSizeMode.GrowAndShrink; flow.Dock = DockStyle.Top;

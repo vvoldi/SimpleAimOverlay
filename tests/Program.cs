@@ -8,6 +8,7 @@ static class Checks {
 const BindingFlags Private = BindingFlags.NonPublic | BindingFlags.Instance;
 static void Assert(bool condition,string message){if(!condition)throw new Exception(message);}
 [STAThread] static void Main(string[] args) {
+if(args.Length==2&&args[0]=="--screenshots"){ScreenshotGallery.Render(args[1]);return;}
 var assembly=Assembly.Load("SimpleAimOverlay");
 var number=assembly.GetType("SimpleAimOverlay.DarkNumberBox")!;
 using(var box=(Control)Activator.CreateInstance(number,[-2000,2000,0])!) {

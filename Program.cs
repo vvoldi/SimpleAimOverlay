@@ -83,7 +83,8 @@ internal static class Store
 internal sealed class ControlWindow : Form
 {
     private const int WM_HOTKEY = 0x0312, HotkeyId = 0x51A1;
-    private StoreData data = Store.Load();
+    private StoreData data;
+    private readonly bool previewMode;
     private readonly OverlayWindow overlay = new();
     private readonly DarkTabHost tabs = new();
     private readonly DarkComboBox shape = new(), monitor = new(), language = new();
@@ -121,8 +122,10 @@ internal sealed class ControlWindow : Form
     [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)] private static extern bool UnregisterHotKey(IntPtr hwnd, int id);
     [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern short GetAsyncKeyState(int key);
 
-    public ControlWindow()
+    public ControlWindow() : this(null) { }
+    internal ControlWindow(StoreData? previewData)
     {
+        previewMode=previewData!=null; data=previewData??Store.Load();
         UiText.Language = data.Language == "uk" ? "uk" : "en";
         Text = "Simple Aim Overlay"; Icon = BrandIcon.Load(); MinimumSize = new Size(900, 660); Size = new Size(1120, 780);
         StartPosition = FormStartPosition.CenterScreen; Font = AppFonts.Regular(9.5f); BackColor = DarkTheme.Window;
@@ -130,7 +133,7 @@ internal sealed class ControlWindow : Form
         foreach (var profile in data.Profiles) if (profile.Aim.Shape == "Image" && BundledCrosshairs.Contains(Path.GetFileName(profile.Aim.ImagePath), StringComparer.OrdinalIgnoreCase)) profile.Aim.Shape = "Cross";
         if (data.Current.Shape == "Image" && BundledCrosshairs.Contains(Path.GetFileName(data.Current.ImagePath), StringComparer.OrdinalIgnoreCase)) data.Current.Shape = "Cross";
         BuildLayout(); LoadCurrent(); initializing = false; Apply(); PopulateImages();
-        tray.Icon = BrandIcon.Load(); tray.Text = "Simple Aim Overlay"; tray.Visible = true;
+        tray.Icon = BrandIcon.Load(); tray.Text = "Simple Aim Overlay"; tray.Visible = !previewMode;
         var menu = new ContextMenuStrip { BackColor = DarkTheme.Surface, ForeColor = DarkTheme.Text, Renderer = new ToolStripProfessionalRenderer(new DarkColorTable()) };
         menu.Items.Add("Open", GlyphPainter.Create("aim", 16, DarkTheme.Accent), (_, _) => RestoreWindow()); menu.Items.Add("Show / hide", GlyphPainter.Create("visibility", 16), (_, _) => ToggleVisible()); menu.Items.Add("Exit", GlyphPainter.Create("delete", 16), (_, _) => { allowExit = true; Close(); }); tray.ContextMenuStrip = menu;
         tray.MouseDown += (_, e) => { if (e.Button == MouseButtons.Right) trayInteracting = true; };
@@ -139,7 +142,7 @@ internal sealed class ControlWindow : Form
         Resize += (_, _) => { if (WindowState == FormWindowState.Minimized && data.MinimizeToTray) Hide(); };
         tray.DoubleClick += (_, _) => RestoreWindow();
         holdTimer.Tick += (_, _) => PollHoldKey();
-        Shown += async (_, _) => { ApplyLanguage(); RoundedUi.Apply(this); runtimeStarted = true; RefreshRuntimeVisibility(); BindHotkey(); holdTimer.Start(); if (data.LaunchWithGame) GameLauncher.StartWatcher(); if (Environment.GetCommandLineArgs().Contains("--game")) Hide(); await CheckUpdates(false); };
+        Shown += async (_, _) => { ApplyLanguage(); RoundedUi.Apply(this); if(previewMode)return; runtimeStarted = true; RefreshRuntimeVisibility(); BindHotkey(); holdTimer.Start(); if (data.LaunchWithGame) GameLauncher.StartWatcher(); if (Environment.GetCommandLineArgs().Contains("--game")) Hide(); await CheckUpdates(false); };
         FormClosing += (_, e) =>
         {
             if (!allowExit && e.CloseReason == CloseReason.UserClosing && data.MinimizeToTrayOnClose)
@@ -233,7 +236,7 @@ internal sealed class ControlWindow : Form
     {
         var p = Page("Settings"); var grid = Grid(); p.Controls.Add(grid);
         language.Items.AddRange(["English", "Українська"]); AddRow(grid, "Language", language);
-        language.SelectedIndexChanged += (_, _) => { if(initializing)return; data.Language=language.SelectedIndex==1?"uk":"en"; ApplyLanguage(); Store.Save(data); };
+        language.SelectedIndexChanged += (_, _) => { if(initializing)return; data.Language=language.SelectedIndex==1?"uk":"en"; ApplyLanguage(); SaveData(); };
         visible.Text = "Show crosshair"; visible.AutoSize = true; AddRow(grid, "Visibility", visible);
         AddRow(grid, "Toggle hotkey", hotkey);
         hideWhileHeld.Text = "Hide while key is held"; hideWhileHeld.AutoSize = true; AddRow(grid, "Hold to hide", hideWhileHeld);
@@ -241,7 +244,7 @@ internal sealed class ControlWindow : Form
         startup.Text = "Launch when Windows starts"; startup.AutoSize = true; AddRow(grid, "Startup", startup);
         closeToTray.Text = "Minimize to tray when closed"; closeToTray.AutoSize = true; AddRow(grid, "Close button", closeToTray);
         minimizeToTray.Text = "Minimize to tray with the − button"; AddRow(grid, "Minimize button", minimizeToTray);
-        minimizeToTray.CheckedChanged += (_, _) => { if (!initializing) { data.MinimizeToTray = minimizeToTray.Checked; Store.Save(data); } };
+        minimizeToTray.CheckedChanged += (_, _) => { if (!initializing) { data.MinimizeToTray = minimizeToTray.Checked; SaveData(); } };
         launchWithGame.Text = "Show only in the selected game"; AddRow(grid, "Selected game", launchWithGame);
         var browseGame = Button("Browse…", DarkTheme.SurfaceHover, DarkTheme.Text);
         var gameRow = GamePathRow.Create(gameExecutable, browseGame);
@@ -263,10 +266,11 @@ internal sealed class ControlWindow : Form
         hideWhileHeld.CheckedChanged += (_, _) => { if (!initializing) Apply(); };
         holdKey.BindingChanged += (_, _) => { if (!initializing) Apply(); };
         startup.CheckedChanged += (_, _) => SetStartup();
-        closeToTray.CheckedChanged += (_, _) => { if (initializing) return; data.MinimizeToTrayOnClose = closeToTray.Checked; Store.Save(data); };
+        closeToTray.CheckedChanged += (_, _) => { if (initializing) return; data.MinimizeToTrayOnClose = closeToTray.Checked; SaveData(); };
         return p;
     }
 
+    private void SaveData() { if(!previewMode)Store.Save(data); }
     private void ApplyLanguage()
     {
         UiText.Language=data.Language=="uk"?"uk":"en";
@@ -283,7 +287,7 @@ internal sealed class ControlWindow : Form
         if (initializing) return;
         string selected = gameExecutable.Text.Trim().Trim('"');
         if (launchWithGame.Checked && !GameLauncher.IsValidTarget(selected)) { DarkMessage.Show(this, "Choose an existing game EXE, or enter its process filename (for example TslGame.exe).", "Game startup"); return; }
-        try { GameLauncher.Configure(launchWithGame.Checked); data.GameExecutable = selected; data.LaunchWithGame = launchWithGame.Checked; Store.Save(data); RefreshRuntimeVisibility(); if (data.LaunchWithGame) GameLauncher.StartWatcher(); }
+        try { GameLauncher.Configure(launchWithGame.Checked); data.GameExecutable = selected; data.LaunchWithGame = launchWithGame.Checked; SaveData(); RefreshRuntimeVisibility(); if (data.LaunchWithGame) GameLauncher.StartWatcher(); }
         catch (Exception ex) { DarkMessage.Show(this, ex.Message, "Game startup"); }
     }
     private Task CheckUpdates(bool manual) => updater.CheckAsync(this, manual, text => { if (!IsDisposed) updateStatus.Text = text; }, () => { allowExit = true; Close(); });
@@ -354,7 +358,7 @@ internal sealed class ControlWindow : Form
     {
         string folder = Path.Combine(Store.Root, "crosshairs"); Directory.CreateDirectory(folder);
         images.Items.Clear(); foreach (var x in data.Images) if (File.Exists(Path.Combine(folder, x))) images.Items.Add(x);
-        Store.Save(data);
+        SaveData();
     }
     private void DrawCrosshairItem(object? sender, DrawItemEventArgs e)
     {
@@ -396,7 +400,7 @@ internal sealed class ControlWindow : Form
         images.Invalidate(); RefreshColorSwatches();
         if (monitor.SelectedItem is MonitorItem mi) s.Monitor = mi.Screen.DeviceName;
         s.Hotkey = hotkey.Binding;
-        RefreshRuntimeVisibility(); preview.Invalidate(); Store.Save(data); BindHotkey();
+        RefreshRuntimeVisibility(); preview.Invalidate(); SaveData(); BindHotkey();
     }
     private Screen SelectedScreen() => monitor.SelectedItem is MonitorItem mi ? mi.Screen : Screen.PrimaryScreen ?? Screen.AllScreens[0];
     private void PickColor(bool isOutline)
@@ -483,7 +487,7 @@ internal sealed class ControlWindow : Form
         {
             using var key = Registry.CurrentUser.OpenSubKey("Software\\Microsoft\\Windows\\CurrentVersion\\Run", true);
             if (startup.Checked) key?.SetValue("SimpleAimOverlay", $"\"{Application.ExecutablePath}\""); else key?.DeleteValue("SimpleAimOverlay", false);
-            data.Current.StartWithWindows = startup.Checked; Store.Save(data);
+            data.Current.StartWithWindows = startup.Checked; SaveData();
         }
         catch { DarkMessage.Show(this, "Could not update the startup setting.", "Simple Aim Overlay", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
     }

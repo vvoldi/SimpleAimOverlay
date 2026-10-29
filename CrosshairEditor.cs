@@ -19,7 +19,7 @@ internal sealed class PixelCrosshairEditor : Form
     private readonly DarkCheckBox tintToAim = new() { Text = "Use crosshair color", AutoSize = false, Width = 180, Height = 36, Checked = true, ForeColor = DarkTheme.Text, BackColor = DarkTheme.Surface, Padding = new Padding(6, 9, 6, 0) };
     private readonly bool resizableCanvas;
     private readonly Panel livePreview = new() { BackColor = DarkTheme.Preview, Dock = DockStyle.Fill };
-    private readonly DarkComboBox dimensions = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 96 };
+    private readonly DarkComboBox dimensions = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 120 };
     private Color initialColor;
     private bool syncingDimensions;
     private readonly Bitmap originalImage;

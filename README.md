@@ -1,23 +1,47 @@
 # Simple Aim Overlay
 
-A customizable crosshair for Windows 10/11 (64-bit). No account required.
+A customizable crosshair for **Windows 10/11, 64-bit**. English and Ukrainian. No account required.
 
-**[Download the latest installer](https://github.com/vvoldi/SimpleAimOverlay/releases/latest)**
+**[Download 0.2.0 — Windows installer](https://github.com/vvoldi/SimpleAimOverlay/releases/download/v0.2.0/SimpleAimOverlay-0.2.0-Setup.exe)** · [All releases](https://github.com/vvoldi/SimpleAimOverlay/releases)
 
-Run `Setup.exe` and approve the administrator prompt. The first installation asks you to trust this project's self-signed certificate; Windows may show an unknown-publisher warning. Exit the app from its tray menu before a manual update.
+## Install & update
 
-- Choose a standard crosshair, or draw your own in **Editor** using pencil, lines, rectangles, ellipses, fill, symmetry and undo/redo.
-- **F8** toggles the crosshair. Holding **Right Mouse** temporarily hides it. Click either binding in Settings to record up to three keys, including mouse buttons.
-- **Settings → Language** switches between English (default) and Ukrainian immediately and remembers your choice.
-- **Settings** controls closing/minimizing to the tray and startup with Windows or a game. PUBG is the default game; choose another EXE with **Browse**. **Show only in the selected game** hides the crosshair on the desktop and in other apps, including after Alt+Tab. It also starts the overlay when that game launches, using a small background watcher at Windows sign-in. Turn the option off for unrestricted visibility and to stop the watcher.
-- In **Editor**, double-click a drawing to edit it, use **Ctrl + wheel** to zoom, and **Import / Export** to share a drawing (.aim preserves color mode; PNG works with other editors). Closing an edited drawing asks whether to save.
-- **Settings → Configuration** imports/exports settings with drawings. Updates keep your configuration and create a backup; importing a configuration keeps this PC's startup choices.
-- Updates are checked once at launch, or through **Settings → Check for updates**. Installation requires confirmation and may ask for administrator approval.
+Run the EXE and approve the administrator prompt. On first installation, setup adds this project's **self-signed certificate** to your PC's trusted stores. Only install if you trust the source; Windows may show an unknown-publisher warning.
 
-Fullscreen compatibility depends on the game and graphics mode. The app does not use game hooks.
+Updates are checked **once at launch**, or manually in **Settings → Check for updates**. Your settings and drawings are kept; the updater also saves a configuration backup before installation. Exit the app through its tray menu before a manual update.
 
-Download speed reflects the last four seconds. **Settings → Open update logs** opens local diagnostics; backups are in the backups subfolder.
+## Make it yours
 
-Settings and custom drawings stay in `%LOCALAPPDATA%\SimpleAimOverlay`.
+- **Crosshair:** standard styles, color, opacity, size, 0.1px thickness steps, gap, outline width/opacity, center offset and monitor selection.
+- **Editor:** pencil, shapes, fill and symmetry. **Ctrl + wheel** zooms; **Ctrl + Z / Y** undo and redo. Double-click a saved drawing to edit it.
+- **Share:** import/export drawings as **.aim** (includes color mode) or **PNG**. **Settings → Configuration** transfers settings and drawings together.
+- **Keys:** **F8** toggles visibility; hold **Right Mouse** to hide temporarily. Click either binding in Settings to record up to three keys, including mouse buttons.
+- **Selected game:** **Show only in the selected game** hides the crosshair outside the active game, including after Alt+Tab. It also starts the app when the game launches, using a background watcher at Windows sign-in. PUBG is the default; choose another game with **Browse**.
+- **Settings:** English / Українська, Windows startup, and closing/minimizing to the tray. Choose **Exit** in the tray menu to quit.
+
+Fullscreen compatibility depends on the game and graphics mode. No game hooks are used.
+
+## Screenshots
+
+Click an image to view it at full size.
+
+| Crosshair controls | Drawing editor |
+| --- | --- |
+| [![Crosshair controls](docs/screenshots/crosshair.png)](docs/screenshots/crosshair.png) | [![Drawing editor](docs/screenshots/editor.png)](docs/screenshots/editor.png) |
+
+| Settings — English | Налаштування — українська |
+| --- | --- |
+| [![English settings](docs/screenshots/settings.png)](docs/screenshots/settings.png) | [![Ukrainian settings](docs/screenshots/settings-uk.png)](docs/screenshots/settings-uk.png) |
+
+<details>
+<summary>Color picker</summary>
+
+[![Color picker](docs/screenshots/color-picker.png)](docs/screenshots/color-picker.png)
+
+</details>
+
+## Help
+
+Settings, drawings and backups stay in **%LOCALAPPDATA%\SimpleAimOverlay**. **Settings → Open update logs** opens download diagnostics; the displayed speed covers the last four seconds.
 
 [Report a problem](https://github.com/vvoldi/SimpleAimOverlay/issues) · [MIT license](LICENSE)

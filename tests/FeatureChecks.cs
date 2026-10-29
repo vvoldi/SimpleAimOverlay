@@ -117,6 +117,28 @@ internal static class FeatureChecks
         var legacy=JsonSerializer.Deserialize<AimSettings>("{\"Thickness\":1}")!;
         Assert(legacy.Thickness==1&&legacy.Hotkey=="F8","Legacy integer configuration remains compatible");
         double previous=0;
+        foreach(int strokeWidth in new[]{1,2,3,4}) {
+            using var crisp=new Bitmap(128,128);
+            var settings=new AimSettings{Shape="Cross",Size=18,Thickness=strokeWidth,Gap=0};
+            var lime=Color.FromArgb(12,255,0);
+            using(var g=Graphics.FromImage(crisp))AimRenderer.Draw(g,new Rectangle(0,0,128,128),settings,lime,Color.Black,false);
+            int rows=0;
+            for(int y=0;y<128;y++)for(int x=0;x<128;x++){
+                var pixel=crisp.GetPixel(x,y);
+                Assert(pixel.A==0||pixel.ToArgb()==lime.ToArgb(),$"Integer {strokeWidth}px cross has exact color and no blurred edge pixels");
+                if(x==70&&pixel.A>0)rows++;
+                int mirror=strokeWidth%2==0?127:128;
+                if(mirror-x<128&&mirror-y<128)Assert(pixel.A==crisp.GetPixel(mirror-x,mirror-y).A,"Opposite arms have symmetric pixel bounds");
+            }
+            Assert(rows==strokeWidth,"Integer stroke occupies exactly the requested pixel rows");
+            using(var g=Graphics.FromImage(crisp)){g.Clear(Color.Transparent);settings.Opacity=50;AimRenderer.Draw(g,new Rectangle(0,0,128,128),settings,lime,Color.Black,false);}
+            Assert(crisp.GetPixel(64,64).A is >=126 and <=128,"Overlapping arms do not accumulate opacity at the center");
+            settings.Opacity=100;
+            foreach(var background in new[]{Color.White,Color.FromArgb(210,170,140)}){
+                using(var g=Graphics.FromImage(crisp)){g.Clear(background);AimRenderer.Draw(g,new Rectangle(0,0,128,128),settings,lime,Color.Black,false);}
+                Assert(crisp.GetPixel(70,64).ToArgb()==lime.ToArgb(),"Bright backgrounds cannot show through the crisp stroke");
+            }
+        }
         for(int step=10;step<=20;step++){
             var settings=new AimSettings{Thickness=step/10f,Size=32,Gap=7};
             using var image=new Bitmap(128,128);using(var g=Graphics.FromImage(image))AimRenderer.Draw(g,new Rectangle(0,0,128,128),settings,Color.Lime,Color.Black,false);

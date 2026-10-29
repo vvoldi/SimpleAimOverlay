@@ -725,6 +725,9 @@ internal static class AimRenderer
 
     public static void Draw(Graphics g, Rectangle bounds, AimSettings s, Color color, Color outline, bool preview)
     {
+        if(s.Shape is "Cross" or "Cross + Dot" or "T-shape" or "Predator" && Math.Abs(s.Thickness-MathF.Round(s.Thickness))<.001f) {
+            DrawCrispCross(g,bounds,s,color,outline,preview);return;
+        }
         if(s.Shape=="Image" || Math.Abs(s.Thickness-MathF.Round(s.Thickness))<.001f){DrawCore(g,bounds,s,color,outline,preview);return;}
         float scale=preview?Math.Min(bounds.Width,bounds.Height)/230f:1;
         // Render just the crosshair at 10×, so every 0.1px step has distinct coverage.
@@ -741,6 +744,43 @@ internal static class AimRenderer
         try {
             // A second interpolation would blur the opaque core again.
             g.DrawImageUnscaled(resolved,(int)MathF.Round(bounds.Width/2f+s.OffsetX*scale-side/2f),(int)MathF.Round(bounds.Height/2f+s.OffsetY*scale-side/2f));
+        }finally{g.Restore(state);}
+    }
+    private static void DrawCrispCross(Graphics g,Rectangle bounds,AimSettings s,Color color,Color outline,bool preview)
+    {
+        float scale=preview?Math.Min(bounds.Width,bounds.Height)/230f:1;
+        int cx=bounds.Left+(int)MathF.Floor(bounds.Width/2f+s.OffsetX*scale);
+        int cy=bounds.Top+(int)MathF.Floor(bounds.Height/2f+s.OffsetY*scale);
+        int width=Math.Max(1,(int)MathF.Round(s.Thickness*scale));
+        int arm=Math.Max(1,(int)MathF.Round(s.Size*scale/2));
+        int gap=Math.Max(0,(int)MathF.Round(s.Gap*scale));
+        // An even-width stroke straddles the center boundary. An odd-width
+        // stroke contains the center pixel. Neither uses half-covered pixels.
+        int x=cx-width/2,y=cy-width/2;
+        int length=arm+width%2;
+        var arms=new List<Rectangle>{new(cx-gap-arm,y,length,width),new(cx+gap,y,length,width)};
+        if(s.Shape!="Predator")arms.Add(new(x,cy-gap-arm,width,length));
+        if(s.Shape!="T-shape")arms.Add(new(x,cy+gap,width,length));
+        using var core=new Region();core.MakeEmpty();
+        using var border=new Region();border.MakeEmpty();
+        int padding=Math.Max(1,(int)MathF.Round(Math.Clamp(s.OutlineWidth,.5f,10)*scale));
+        foreach(var rect in arms){core.Union(rect);var outer=rect;outer.Inflate(padding,padding);border.Union(outer);}
+        if(s.Shape is "Cross + Dot" or "Predator"){
+            int diameter=Math.Max(2,(int)MathF.Round(width*1.4f));
+            using var dot=new GraphicsPath();dot.AddEllipse(cx-diameter/2,cy-diameter/2,diameter,diameter);core.Union(dot);
+            using var outerDot=new GraphicsPath();outerDot.AddEllipse(cx-diameter/2-padding,cy-diameter/2-padding,diameter+2*padding,diameter+2*padding);border.Union(outerDot);
+        }
+        int alpha=(int)Math.Clamp(color.A*s.Opacity/100f,0,255);
+        var state=g.Save();
+        try {
+            g.SmoothingMode=SmoothingMode.None;g.PixelOffsetMode=PixelOffsetMode.None;
+            if(s.Outline){
+                // Draw the outline outside the core so opacity doesn't build
+                // up at the center or where the crosshair arms intersect.
+                border.Exclude(core);
+                using var edge=new SolidBrush(Color.FromArgb(alpha*Math.Clamp(s.OutlineOpacity,0,100)/100,outline));g.FillRegion(edge,border);
+            }
+            using var fill=new SolidBrush(Color.FromArgb(alpha,color));g.FillRegion(fill,core);
         }finally{g.Restore(state);}
     }
     private static Bitmap ResolveCoverage(Bitmap source,int factor)

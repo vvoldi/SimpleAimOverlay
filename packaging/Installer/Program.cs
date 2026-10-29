@@ -37,7 +37,7 @@ internal static class Program
     static void Install(int? parent)
     {
         var result = parent.HasValue ? DialogResult.Yes : DarkMessage.Show(
-            "This is a self-signed Simple Aim Overlay 0.2.0 build.\n\n" +
+            "This is a self-signed Simple Aim Overlay 0.2.1 build.\n\n" +
             "Setup will add the SimpleAimOverlay test certificate to this PC's trusted certificate stores " +
             "and install the app in Program Files (required for UIAccess).\n\n" +
             "Only continue if you trust the package source. This build does not include a DXGI hook.\n\n" +
@@ -46,7 +46,21 @@ internal static class Program
         if (result != DialogResult.Yes) return;
 
         if (parent.HasValue) {
-            try { using var app = Process.GetProcessById(parent.Value); if (app.ProcessName == "SimpleAimOverlay" && !app.WaitForExit(30000)) throw new InvalidOperationException("Close Simple Aim Overlay and run setup again."); }
+            try {
+                using var app = Process.GetProcessById(parent.Value);
+                if (app.ProcessName == "SimpleAimOverlay" && !app.WaitForExit(3000)) {
+                    string expected=Path.GetFullPath(Path.Combine(InstallDir,AppExe));
+                    string? actual=app.MainModule?.FileName;
+                    if(actual==null||!string.Equals(Path.GetFullPath(actual),expected,StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidOperationException("Close Simple Aim Overlay and run setup again.");
+                    // Older updaters may cancel their first exit while closing
+                    // the progress window. Retry a normal close, never force-kill.
+                    for(int attempt=0;attempt<5&&!app.HasExited;attempt++) {
+                        app.Refresh();app.CloseMainWindow();if(app.WaitForExit(2000))break;
+                    }
+                    if(!app.HasExited)throw new InvalidOperationException("Exit Simple Aim Overlay using its tray menu, then run setup again. Your settings have not been changed.");
+                }
+            }
             catch (ArgumentException) { /* The app already exited. */ }
         }
         StopGameWatcher();
@@ -67,7 +81,7 @@ internal static class Program
         using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\SimpleAimOverlayTest"))
         {
             key.SetValue("DisplayName", Product);
-            key.SetValue("DisplayVersion", "0.2.0");
+            key.SetValue("DisplayVersion", "0.2.1");
             key.SetValue("Publisher", "SimpleAimOverlay contributors (local test certificate)");
             key.SetValue("InstallLocation", InstallDir);
             key.SetValue("DisplayIcon", Path.Combine(InstallDir, AppExe));

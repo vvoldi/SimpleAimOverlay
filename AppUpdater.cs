@@ -73,7 +73,9 @@ internal sealed class AppUpdater : IDisposable
             var start = new ProcessStartInfo(file) { UseShellExecute=true, Verb="runas" };
             start.ArgumentList.Add("/update"); start.ArgumentList.Add(Environment.ProcessId.ToString());
             using var process = Process.Start(start) ?? throw new InvalidOperationException("Could not start the installer.");
-            launched=true; installed();
+            launched=true;
+            CompleteHandoff(progressWindow,installed);
+            progressWindow=null;
         }
         catch (OperationCanceledException) { if(!owner.IsDisposed)status("Update check timed out or was cancelled."); }
         catch (System.ComponentModel.Win32Exception ex) when(ex.NativeErrorCode==1223) { if(!owner.IsDisposed)status("Update cancelled. You can try again in Settings."); }
@@ -81,6 +83,13 @@ internal sealed class AppUpdater : IDisposable
         finally { if(progressWindow != null) { if(!progressWindow.IsDisposed)progressWindow.Finish();progressWindow.Dispose(); } busy=false; if(!launched && file!=null){try{File.Delete(file);Directory.Delete(Path.GetDirectoryName(file)!);}catch{}} }
     }
     internal sealed record DownloadProgress(long Received, long Total, double BytesPerSecond);
+    internal static void CompleteHandoff(UpdateProgressWindow window,Action installed)
+    {
+        // Owned forms close before their owner. An unfinished progress window
+        // cancels FormClosing, which otherwise also cancels the app's exit.
+        window.Finish();window.Dispose();
+        installed();
+    }
     internal async Task DownloadAsync(Release release, string file, IProgress<DownloadProgress> progress, CancellationToken token)
     {
         using var log=new DownloadDiagnostics(release.Size);

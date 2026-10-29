@@ -9,6 +9,17 @@ internal static class FeatureChecks
     static void Assert(bool value,string reason){if(!value)throw new Exception(reason);}
     internal static void Run(){
         const BindingFlags fields=BindingFlags.Instance|BindingFlags.NonPublic;
+        using(var owner=new Form())using(var progress=new UpdateProgressWindow()) {
+            owner.Show();progress.Show(owner);Application.DoEvents();owner.Close();
+            Assert(!owner.IsDisposed,"Reproduce old update failure: unfinished owned progress cancels owner close");
+            progress.Finish();owner.Close();
+        }
+        using(var owner=new Form())using(var progress=new UpdateProgressWindow()) {
+            owner.Show();progress.Show(owner);Application.DoEvents();bool cancelled=false;
+            progress.CancelRequested+=()=>cancelled=true;
+            AppUpdater.CompleteHandoff(progress,()=>owner.Close());Application.DoEvents();
+            Assert(owner.IsDisposed&&progress.IsDisposed&&!cancelled,"Update handoff closes progress before owner without cancelling exit");
+        }
         Assert(new StoreData().Language=="en","English is the default language");
         Assert(JsonSerializer.Deserialize<StoreData>("{}")!.Language=="en","Older configurations keep English by default");
         Assert(JsonSerializer.Deserialize<StoreData>(JsonSerializer.Serialize(new StoreData{Language="uk"}))!.Language=="uk","Language preference survives configuration save/load");

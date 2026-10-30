@@ -8,6 +8,35 @@ internal static class FeatureChecks
 {
     static void Assert(bool value,string reason){if(!value)throw new Exception(reason);}
     internal static void Run(){
+        using (var hidden = new ControlWindow(new StoreData(), true))
+        {
+            int shown = 0; hidden.Shown += (_, _) => shown++;
+            hidden.Show(); Application.DoEvents();
+            Assert(!hidden.Visible && shown == 0, "Tray startup never displays or flashes the settings window");
+            hidden.Show(); Application.DoEvents();
+            Assert(hidden.Visible && shown == 1, "Tray Open can show the initially hidden window");
+        }
+        string shortcutFolder = Path.Combine(Path.GetTempPath(), "sao-shortcut-test-" + Guid.NewGuid().ToString("N"));
+        string shortcutFile = Path.Combine(shortcutFolder, "Simple Aim Overlay.lnk");
+        try
+        {
+            DesktopShortcut.Create(Application.ExecutablePath, shortcutFile);
+            DesktopShortcut.Create(Application.ExecutablePath, shortcutFile);
+            dynamic shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!)!;
+            try
+            {
+                dynamic link = shell.CreateShortcut(shortcutFile);
+                try
+                {
+                    Assert(string.Equals((string)link.TargetPath, Application.ExecutablePath, StringComparison.OrdinalIgnoreCase), "Desktop shortcut targets the app");
+                    Assert((string)link.Arguments == "", "Desktop shortcut opens settings instead of tray startup");
+                }
+                finally { System.Runtime.InteropServices.Marshal.FinalReleaseComObject(link); }
+            }
+            finally { System.Runtime.InteropServices.Marshal.FinalReleaseComObject(shell); }
+        }
+        finally { if (File.Exists(shortcutFile)) File.Delete(shortcutFile); if (Directory.Exists(shortcutFolder)) Directory.Delete(shortcutFolder); }
+        using (var options = new InstallOptionsDialog()) Assert(options.CreateDesktopShortcut, "Installer offers a desktop shortcut by default");
         Assert(StartupRegistration.StartupMode(true,true)=="app", "Both startup options launch one app");
         Assert(StartupRegistration.StartupMode(true,false)=="app", "Windows startup opens app");
         Assert(StartupRegistration.StartupMode(false,true)=="watcher", "Game-only startup stays in background");

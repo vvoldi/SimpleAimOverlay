@@ -38,13 +38,20 @@ internal static class Program
     static void Install(int? parent)
     {
         var result = parent.HasValue ? DialogResult.Yes : DarkMessage.Show(
-            "This is a self-signed Simple Aim Overlay 0.2.8 build.\n\n" +
+            "This is a self-signed Simple Aim Overlay 0.2.9 build.\n\n" +
             "Setup will add the SimpleAimOverlay test certificate to this PC's trusted certificate stores " +
             "and install the app in Program Files (required for UIAccess).\n\n" +
             "Only continue if you trust the package source. This build does not include a DXGI hook.\n\n" +
             "Continue? Windows will ask for administrator approval.",
             Product, MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
         if (result != DialogResult.Yes) return;
+        bool createDesktop = false;
+        if (!parent.HasValue)
+        {
+            using var options = new InstallOptionsDialog();
+            if (options.ShowDialog() != DialogResult.OK) return;
+            createDesktop = options.CreateDesktopShortcut;
+        }
 
         using var progress=new SetupProgress();
         progress.Show();progress.Report("Closing the app…",5);
@@ -85,10 +92,11 @@ internal static class Program
         progress.Report("Updating shortcuts…",75);
         string oldShortcut=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms),"SimpleAimOverlay Test.lnk"); if(File.Exists(oldShortcut))File.Delete(oldShortcut);
         CreateShortcut(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms), Product + ".lnk"), Path.Combine(InstallDir, AppExe));
+        if (createDesktop) DesktopShortcut.Create(target);
         using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\SimpleAimOverlayTest"))
         {
             key.SetValue("DisplayName", Product);
-            key.SetValue("DisplayVersion", "0.2.8");
+            key.SetValue("DisplayVersion", "0.2.9");
             key.SetValue("Publisher", "SimpleAimOverlay contributors (local test certificate)");
             key.SetValue("InstallLocation", InstallDir);
             key.SetValue("DisplayIcon", Path.Combine(InstallDir, AppExe));
@@ -139,6 +147,7 @@ internal static class Program
         if (DarkMessage.Show("Remove Simple Aim Overlay Test and its test certificate from this PC's trusted stores?", Product, MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
         StopGameWatcher();
         File.Delete(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Startup), "Simple Aim Overlay.lnk"));
+        File.Delete(DesktopShortcut.ShortcutPath);
         using (var run = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true)) { run?.DeleteValue("SimpleAimOverlayGameWatcher", false); run?.DeleteValue("SimpleAimOverlay", false); }
         try { File.Delete(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms), Product + ".lnk")); } catch { }
         foreach (var storeName in new[] { StoreName.Root, StoreName.TrustedPublisher })

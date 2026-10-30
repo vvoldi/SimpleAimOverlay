@@ -33,6 +33,21 @@ internal class StyledDialog : Form
         b.FlatAppearance.BorderSize=0; return b;
     }
 }
+internal sealed class InstallOptionsDialog : StyledDialog
+{
+    private readonly CheckBox desktop = new() { Text = "Create desktop shortcut", Checked = true, AutoSize = true, Dock = DockStyle.Top, Height = 36 };
+    internal bool CreateDesktopShortcut => desktop.Checked;
+    public InstallOptionsDialog()
+    {
+        Text = "Installation options"; ClientSize = new Size(460, 190);
+        var row = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 48, FlowDirection = FlowDirection.RightToLeft };
+        var install = ActionButton("Install", DialogResult.OK);
+        var cancel = ActionButton("Cancel", DialogResult.Cancel);
+        row.Controls.Add(install); row.Controls.Add(cancel);
+        Controls.Add(desktop); Controls.Add(row); AcceptButton = install; CancelButton = cancel;
+    }
+}
+
 internal static class DarkMessage
 {
     public static DialogResult Show(string text,string title,MessageBoxButtons buttons=MessageBoxButtons.OK,MessageBoxIcon icon=MessageBoxIcon.None,MessageBoxDefaultButton defaultButton=MessageBoxDefaultButton.Button1) => Show(null,text,title,buttons,icon,defaultButton);

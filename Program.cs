@@ -25,7 +25,12 @@ internal static class Program
         }
         if (args.Contains("--watch-game")) { GameLauncher.RunWatcher(); return; }
         using var mutex = new Mutex(true, "SimpleAimOverlay.SingleInstance", out bool first);
-        if (!first) { StartupDiagnostics.Write("Existing instance detected; exiting"); return; }
+        if (!first)
+        {
+            if (!args.Contains("--startup") && !args.Contains("--game"))
+                try { using var signal = EventWaitHandle.OpenExisting(@"Local\SimpleAimOverlay.OpenWindow"); signal.Set(); } catch (WaitHandleCannotBeOpenedException) { }
+            StartupDiagnostics.Write("Existing instance detected; exiting"); return;
+        }
         StartupDiagnostics.Write("Opening application window");
         Application.Run(new ControlWindow());
     }
@@ -133,10 +138,15 @@ internal sealed class ControlWindow : Form
     [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)] private static extern bool UnregisterHotKey(IntPtr hwnd, int id);
     [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern short GetAsyncKeyState(int key);
 
-    public ControlWindow() : this(null) { }
-    internal ControlWindow(StoreData? previewData)
+    private readonly bool startInTray;
+    private bool initialVisibilityHandled;
+    private readonly EventWaitHandle? openWindowSignal;
+    public ControlWindow() : this(null, Environment.GetCommandLineArgs().Any(a => a is "--startup" or "--game")) { }
+    internal ControlWindow(StoreData? previewData, bool startInTray = false)
     {
+        this.startInTray = startInTray;
         previewMode=previewData!=null; data=previewData??Store.Load();
+        if (!previewMode) openWindowSignal = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\SimpleAimOverlay.OpenWindow");
         UiText.Language = data.Language == "uk" ? "uk" : "en";
         Text = "Simple Aim Overlay"; Icon = BrandIcon.Load(); MinimumSize = new Size(900, 660); Size = new Size(1120, 780);
         StartPosition = FormStartPosition.CenterScreen; Font = AppFonts.Regular(9.5f); BackColor = DarkTheme.Window;
@@ -152,17 +162,46 @@ internal sealed class ControlWindow : Form
         menu.Closed += (_, _) => { trayInteracting = false; overlay.SuspendZOrder = false; };
         Resize += (_, _) => { if (WindowState == FormWindowState.Minimized && data.MinimizeToTray) Hide(); };
         tray.DoubleClick += (_, _) => RestoreWindow();
-        holdTimer.Tick += (_, _) => PollHoldKey();
-        Shown += async (_, _) => { ApplyLanguage(); RoundedUi.Apply(this); if(previewMode)return; StartupDiagnostics.Write("Application window shown"); try { StartupRegistration.Migrate(data); } catch (Exception ex) { DarkMessage.Show(this, ex.Message, "Simple Aim Overlay"); } runtimeStarted = true; RefreshRuntimeVisibility(); BindHotkey(); holdTimer.Start(); if (data.LaunchWithGame) GameLauncher.StartWatcher(); if (Environment.GetCommandLineArgs().Contains("--game")) Hide(); await CheckUpdates(false); };
+        holdTimer.Tick += (_, _) => { if (openWindowSignal?.WaitOne(0) == true) RestoreWindow(); PollHoldKey(); };
+        Shown += async (_, _) => await StartRuntime();
         FormClosing += (_, e) =>
         {
             if (!allowExit && e.CloseReason == CloseReason.UserClosing && data.MinimizeToTrayOnClose)
             {
                 e.Cancel = true; Hide(); return;
             }
-            updater.Dispose(); holdTimer.Stop(); holdTimer.Dispose(); UnregisterHotKey(Handle, HotkeyId); tray.Visible = false; tray.Dispose(); overlay.Close();
+            updater.Dispose(); holdTimer.Stop(); holdTimer.Dispose(); openWindowSignal?.Dispose(); UnregisterHotKey(Handle, HotkeyId); tray.Visible = false; tray.Dispose(); overlay.Close();
         };
         ApplyTheme();
+    }
+
+    protected override void SetVisibleCore(bool value)
+    {
+        if (value && !initialVisibilityHandled)
+        {
+            initialVisibilityHandled = true;
+            if (startInTray)
+            {
+                // Initialize the message loop and overlay without ever showing the settings form.
+                _ = Handle;
+                BeginInvoke(new Action(async () => await StartRuntime()));
+                return;
+            }
+        }
+        base.SetVisibleCore(value);
+    }
+
+    private async Task StartRuntime()
+    {
+        ApplyLanguage(); RoundedUi.Apply(this);
+        if (previewMode || runtimeStarted) return;
+        runtimeStarted = true;
+        StartupDiagnostics.Write(Visible ? "Application window shown" : "Application started in tray");
+        try { StartupRegistration.Migrate(data); }
+        catch (Exception ex) { DarkMessage.Show(this, ex.Message, "Simple Aim Overlay"); }
+        RefreshRuntimeVisibility(); BindHotkey(); holdTimer.Start();
+        if (data.LaunchWithGame) GameLauncher.StartWatcher();
+        await CheckUpdates(false);
     }
 
     [System.Runtime.InteropServices.DllImport("dwmapi.dll", PreserveSig = true)] private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
@@ -258,6 +297,12 @@ internal sealed class ControlWindow : Form
         hideWhileHeld.Text = "Hide while key is held"; hideWhileHeld.AutoSize = true; AddRow(grid, "Hold to hide", hideWhileHeld);
         AddRow(grid, "Hold key", holdKey);
         startup.Text = "Launch when Windows starts"; startup.AutoSize = true; AddRow(grid, "Startup", startup);
+        var desktopShortcut = Button("Create desktop shortcut", DarkTheme.SurfaceHover, DarkTheme.Text);
+        desktopShortcut.Click += (_, _) => {
+            try { DesktopShortcut.Create(Application.ExecutablePath); DarkMessage.Show(this, "Desktop shortcut created.", "Simple Aim Overlay"); }
+            catch (Exception ex) { DarkMessage.Show(this, ex.Message, "Simple Aim Overlay", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+        };
+        AddRow(grid, "Desktop", desktopShortcut);
         closeToTray.Text = "Minimize to tray when closed"; closeToTray.AutoSize = true; AddRow(grid, "Close button", closeToTray);
         minimizeToTray.Text = "Minimize to tray with the − button"; AddRow(grid, "Minimize button", minimizeToTray);
         minimizeToTray.CheckedChanged += (_, _) => { if (!initializing) { data.MinimizeToTray = minimizeToTray.Checked; SaveData(); } };

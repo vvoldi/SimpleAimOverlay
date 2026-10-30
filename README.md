@@ -2,7 +2,7 @@
 
 A customizable crosshair for **Windows 10/11, 64-bit**. English and Ukrainian. No account required.
 
-**[Download 0.2.8 — Windows installer](https://github.com/vvoldi/SimpleAimOverlay/releases/download/v0.2.8/SimpleAimOverlay-0.2.8-Setup.exe)** · [All releases](https://github.com/vvoldi/SimpleAimOverlay/releases)
+**[Download 0.2.9 — Windows installer](https://github.com/vvoldi/SimpleAimOverlay/releases/download/v0.2.9/SimpleAimOverlay-0.2.9-Setup.exe)** · [All releases](https://github.com/vvoldi/SimpleAimOverlay/releases)
 
 ## Install & update
 
@@ -12,6 +12,8 @@ Updates are checked **once at launch**, or manually in **Settings → Check for 
 
 ## Make it yours
 
+- **Tray startup:** Windows and game-triggered launches start in the tray. Double-click the tray icon or open the desktop shortcut to show settings.
+- **Desktop shortcut:** select it during installation, or use **Settings → Desktop → Create desktop shortcut** later.
 - **Crosshair:** standard styles, color, opacity, size, 0.1px thickness steps, gap, outline width/opacity, center offset and monitor selection.
 - **Editor:** pencil, shapes, fill and symmetry. **Ctrl + wheel** zooms; **Ctrl + Z / Y** undo and redo. Double-click a saved drawing to edit it.
 - **Share:** import/export drawings as **.aim** (includes color mode) or **PNG**. **Settings → Configuration** transfers settings and drawings together.

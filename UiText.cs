@@ -9,6 +9,11 @@ internal static class UiText
     private sealed class Caption { public string English=""; public bool Updating; }
     private static readonly ConditionalWeakTable<Control,Caption> captions=new();
     private static readonly Dictionary<string,string> Ukrainian=new(StringComparer.Ordinal) {
+        ["Create desktop shortcut"]="Створити ярлик на робочому столі",
+        ["Desktop shortcut created."]="Ярлик на робочому столі створено.",
+        ["Desktop"]="Робочий стіл",
+        ["Installation options"]="Параметри встановлення",
+        ["Install"]="Встановити",
         ["Crosshair"]="Приціл", ["Editor"]="Редактор", ["Settings"]="Налаштування",
         ["Build a clean, readable crosshair"]="Налаштуй чіткий та зручний приціл", ["LIVE PREVIEW"]="ПОПЕРЕДНІЙ ПЕРЕГЛЯД",
         ["Style"]="Стиль", ["Color"]="Колір", ["Aim color"]="Колір прицілу", ["Opacity"]="Непрозорість",

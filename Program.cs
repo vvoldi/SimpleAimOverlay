@@ -12,18 +12,21 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        StartupDiagnostics.Write(args.Contains("--startup") ? "Windows startup entered" : args.Contains("--watch-game") ? "Game watcher entered" : "Application entered");
         ApplicationConfiguration.Initialize();
         AppFonts.Initialize();
         if (args.Contains("--startup"))
         {
             var settings = Store.Load();
             string? mode = StartupRegistration.StartupMode(settings.Current.StartWithWindows, settings.LaunchWithGame);
+            StartupDiagnostics.Write("Startup mode: " + (mode ?? "disabled"));
             if (mode == null) return;
             if (mode == "watcher") { GameLauncher.RunWatcher(); return; }
         }
         if (args.Contains("--watch-game")) { GameLauncher.RunWatcher(); return; }
         using var mutex = new Mutex(true, "SimpleAimOverlay.SingleInstance", out bool first);
-        if (!first) return;
+        if (!first) { StartupDiagnostics.Write("Existing instance detected; exiting"); return; }
+        StartupDiagnostics.Write("Opening application window");
         Application.Run(new ControlWindow());
     }
 }
@@ -150,7 +153,7 @@ internal sealed class ControlWindow : Form
         Resize += (_, _) => { if (WindowState == FormWindowState.Minimized && data.MinimizeToTray) Hide(); };
         tray.DoubleClick += (_, _) => RestoreWindow();
         holdTimer.Tick += (_, _) => PollHoldKey();
-        Shown += async (_, _) => { ApplyLanguage(); RoundedUi.Apply(this); if(previewMode)return; try { StartupRegistration.Migrate(data); } catch (Exception ex) { DarkMessage.Show(this, ex.Message, "Simple Aim Overlay"); } runtimeStarted = true; RefreshRuntimeVisibility(); BindHotkey(); holdTimer.Start(); if (data.LaunchWithGame) GameLauncher.StartWatcher(); if (Environment.GetCommandLineArgs().Contains("--game")) Hide(); await CheckUpdates(false); };
+        Shown += async (_, _) => { ApplyLanguage(); RoundedUi.Apply(this); if(previewMode)return; StartupDiagnostics.Write("Application window shown"); try { StartupRegistration.Migrate(data); } catch (Exception ex) { DarkMessage.Show(this, ex.Message, "Simple Aim Overlay"); } runtimeStarted = true; RefreshRuntimeVisibility(); BindHotkey(); holdTimer.Start(); if (data.LaunchWithGame) GameLauncher.StartWatcher(); if (Environment.GetCommandLineArgs().Contains("--game")) Hide(); await CheckUpdates(false); };
         FormClosing += (_, e) =>
         {
             if (!allowExit && e.CloseReason == CloseReason.UserClosing && data.MinimizeToTrayOnClose)

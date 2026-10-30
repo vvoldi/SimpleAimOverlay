@@ -3,6 +3,12 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot -Parent
 Push-Location $root
 try {
+    # Logon startup must not request administrator elevation. UIAccess is independent.
+    $manifest = [xml](Get-Content app.uiaccess.manifest -Raw)
+    $execution = $manifest.SelectSingleNode("//*[local-name()='requestedExecutionLevel']")
+    if ($execution.level -ne 'asInvoker' -or $execution.uiAccess -ne 'true') {
+        throw "The overlay must use asInvoker with UIAccess; elevation breaks Windows startup."
+    }
     $cert = Get-Item "Cert:\CurrentUser\My\$CertificateThumbprint"
     if (!$cert.HasPrivateKey) { throw "The signing certificate requires its private key in the local Windows certificate store." }
     $installerSource = Get-Content packaging/Installer/Program.cs -Raw

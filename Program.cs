@@ -464,7 +464,7 @@ internal sealed class ControlWindow : Form
             grid.Controls.Add(heading, 0, headingRow); grid.SetColumnSpan(heading, 2);
         }
         // Nested button margins count towards the row height, including wrapped rows.
-        bool flowing = control is FlowLayoutPanel && label != "Center offset";
+        bool flowing = control is FlowLayoutPanel && label is not ("Center offset" or "Configuration");
         int row = grid.RowCount++; grid.RowStyles.Add(flowing ? new RowStyle(SizeType.AutoSize) : new RowStyle(SizeType.Absolute, 45));
         var l = new Label { Text = label, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = DarkTheme.Muted, BackColor = DarkTheme.Surface };
         // Layout containers share the page background; only inputs need a dark fill.

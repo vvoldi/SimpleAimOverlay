@@ -21,38 +21,68 @@ internal static class UiMotion
     internal static IDisposable Transition(Control host) => new TransitionFrame(host);
     private sealed class TransitionFrame : IDisposable
     {
-        private readonly Control host; private Bitmap? before;
-        [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern IntPtr SendMessage(IntPtr window,int message,IntPtr wparam,IntPtr lparam);
-        private bool frozen;
-        internal TransitionFrame(Control host) {
+        private readonly Control host;
+        private FadeLayer? layer;
+        internal TransitionFrame(Control host)
+        {
             this.host=host;
-            if (!Enabled || !host.Visible || !host.IsHandleCreated || host.Width<1 || host.Height<1) return;
-            foreach(var old in (host is TableLayoutPanel && host.Parent!=null ? host.Parent : host).Controls.OfType<FadeLayer>().ToArray()) old.Dispose();
-            try { before=new Bitmap(host.Width,host.Height); host.DrawToBitmap(before,host.ClientRectangle); SendMessage(host.Handle,0xB,IntPtr.Zero,IntPtr.Zero); frozen=true; } catch { before?.Dispose();before=null; }
+            var form=host.FindForm();
+            if(!Enabled || form==null || host==form || !host.Visible || !host.IsHandleCreated || host.Width<1 || host.Height<1)return;
+            var bounds=new Rectangle(form.PointToClient(host.PointToScreen(Point.Empty)),host.ClientSize);
+            Bitmap? before=null;
+            try {
+                // Keep the current presentation covered until the replacement layer is painted.
+                var old=form.Controls.OfType<FadeLayer>().ToArray();
+                before=new Bitmap(host.Width,host.Height);
+                var previous=old.FirstOrDefault(x=>x.Bounds==bounds);
+                if(previous!=null)previous.DrawToBitmap(before,new Rectangle(Point.Empty,before.Size));
+                else host.DrawToBitmap(before,host.ClientRectangle);
+                layer=new FadeLayer(before){Bounds=bounds};before=null;
+                form.Controls.Add(layer);layer.BringToFront();layer.Update();
+                foreach(var item in old)item.Dispose();
+            } catch {before?.Dispose();layer?.Dispose();layer=null;}
         }
-        public void Dispose() {
-            try { Complete(); } finally { if(frozen && !host.IsDisposed){SendMessage(host.Handle,0xB,new IntPtr(1),IntPtr.Zero);host.Invalidate(true);} frozen=false; }
-        }
-        private void Complete() {
-            if(before==null)return;
-            if(host.IsDisposed){before.Dispose();return;}
-            Bitmap after;
-            try { host.PerformLayout();after=new Bitmap(host.Width,host.Height);host.DrawToBitmap(after,host.ClientRectangle); }
-            catch {before.Dispose();before=null;return;}
-            bool sibling=host is TableLayoutPanel && host.Parent!=null;
-            var layer=new FadeLayer(before,after){Bounds=sibling?host.Bounds:host.ClientRectangle,Anchor=AnchorStyles.Top|AnchorStyles.Bottom|AnchorStyles.Left|AnchorStyles.Right};
-            before=null; (sibling?host.Parent!:host).Controls.Add(layer); layer.BringToFront(); layer.Start();
+        public void Dispose()
+        {
+            if(layer==null)return;
+            var current=layer;layer=null;
+            if(host.IsDisposed || current.IsDisposed){current.Dispose();return;}
+            Bitmap? after=null;
+            try {
+                host.PerformLayout();
+                after=new Bitmap(host.Width,host.Height);host.DrawToBitmap(after,host.ClientRectangle);
+                current.Start(after);after=null;
+            } catch {after?.Dispose();current.Dispose();}
         }
     }
     private sealed class FadeLayer : Control
     {
-        private readonly Bitmap image, after; private readonly Stopwatch clock=new();
+        private readonly Bitmap image;
+        private Bitmap? after;
+        private readonly Stopwatch clock=new();
+        private bool finishing;
         private readonly System.Windows.Forms.Timer timer=new(){Interval=15};
-        internal FadeLayer(Bitmap image,Bitmap after){this.image=image;this.after=after;SetStyle(ControlStyles.UserPaint|ControlStyles.AllPaintingInWmPaint|ControlStyles.OptimizedDoubleBuffer,true);TabStop=false;timer.Tick+=(_,_)=>{if(clock.ElapsedMilliseconds>=160)Dispose();else Invalidate();};}
-        internal void Start(){clock.Start();timer.Start();}
+        internal FadeLayer(Bitmap image)
+        {
+            this.image=image;
+            SetStyle(ControlStyles.UserPaint|ControlStyles.AllPaintingInWmPaint|ControlStyles.OptimizedDoubleBuffer|ControlStyles.Opaque,true);
+            TabStop=false;timer.Tick+=(_,_)=>Invalidate();
+        }
+        internal void Start(Bitmap next){after=next;Invalidate();timer.Start();}
         protected override void WndProc(ref Message m){if(m.Msg==0x84){m.Result=new IntPtr(-1);return;}base.WndProc(ref m);}
-        protected override void OnPaint(PaintEventArgs e){e.Graphics.DrawImage(after,ClientRectangle);using var attributes=new ImageAttributes();var matrix=new ColorMatrix{Matrix33=(float)Math.Max(0,1-clock.Elapsed.TotalMilliseconds/160)};attributes.SetColorMatrix(matrix);e.Graphics.DrawImage(image,ClientRectangle,0,0,image.Width,image.Height,GraphicsUnit.Pixel,attributes);}
-        protected override void Dispose(bool disposing){if(disposing){timer.Dispose();image.Dispose();after.Dispose();}base.Dispose(disposing);}
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            if(after==null){e.Graphics.DrawImageUnscaled(image,0,0);return;}
+            // Start timing on the first presented frame, not during layout/capture.
+            if(!clock.IsRunning)clock.Start();
+            double t=Math.Clamp(clock.Elapsed.TotalMilliseconds/180,0,1);
+            e.Graphics.DrawImageUnscaled(after,0,0);
+            using var attributes=new ImageAttributes();
+            attributes.SetColorMatrix(new ColorMatrix{Matrix33=(float)(1-t*t*(3-2*t))});
+            e.Graphics.DrawImage(image,new Rectangle(Point.Empty,image.Size),0,0,image.Width,image.Height,GraphicsUnit.Pixel,attributes);
+            if(t>=1 && !finishing){finishing=true;timer.Stop();BeginInvoke(new Action(()=>{if(!IsDisposed)Dispose();}));}
+        }
+        protected override void Dispose(bool disposing){if(disposing){timer.Dispose();image.Dispose();after?.Dispose();}base.Dispose(disposing);}
     }
 }
 

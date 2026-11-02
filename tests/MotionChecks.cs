@@ -17,7 +17,8 @@ internal static class MotionChecks
         using(var host=new Form()){var slider=new DarkSlider(10,240){Dock=DockStyle.Top};host.Controls.Add(slider);host.Show();
             slider.Value=173;Settle();
             if(slider.Value!=173||Math.Abs(slider.VisualValue-173)>.05)throw new Exception("Slider animation must settle at the exact selected value");
-            using(UiMotion.Transition(host)){host.BackColor=System.Drawing.Color.Navy;}
+            var page=new Panel{Bounds=new System.Drawing.Rectangle(0,50,200,100)};host.Controls.Add(page);
+            using(UiMotion.Transition(page)){if(UiMotion.Enabled && !host.Controls.Cast<Control>().Any(c=>c.GetType().Name=="FadeLayer"))throw new Exception("Old frame must cover the page before mutation");page.BackColor=System.Drawing.Color.Navy;}
             Settle();if(host.Controls.Cast<Control>().Any(c=>c.GetType().Name=="FadeLayer"))throw new Exception("Transition layer must be removed after completion");host.Close();
         }
         using(var content=new Panel{AutoScroll=true})using(var host=new Form()){

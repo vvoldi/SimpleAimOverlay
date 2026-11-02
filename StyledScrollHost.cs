@@ -6,14 +6,14 @@ internal sealed class StyledScrollHost : Panel, IMessageFilter
 {
     private readonly System.Windows.Forms.Timer motion=new(){Interval=15};
     private readonly System.Diagnostics.Stopwatch motionClock=new();
-    private double scrollFrom, scrollTarget;
+    private double scrollPosition, scrollTarget;
     internal void SmoothWheel(int delta)
     {
         var range=Range(); if(range.Max==0)return;
-        scrollFrom=range.Top;
+        if(!motion.Enabled){scrollPosition=range.Top;motionClock.Restart();}
         scrollTarget=Math.Clamp((motion.Enabled?scrollTarget:range.Top)-delta/120.0*48,0,range.Max);
         if(!UiMotion.Enabled){ScrollTo((int)Math.Round(scrollTarget));return;}
-        motionClock.Restart();motion.Start();
+        motion.Start();
     }
     public bool PreFilterMessage(ref Message message)
     {
@@ -27,13 +27,18 @@ internal sealed class StyledScrollHost : Panel, IMessageFilter
     }
     private readonly Control content;
     internal Control Content => content;
-    private readonly Panel viewport=new(){Dock=DockStyle.Fill};
+    private readonly Panel viewport=new CompositedViewport(){Dock=DockStyle.Fill};
     private readonly Rail rail;
     private readonly System.Windows.Forms.Timer sync=new(){Interval=80};
     internal StyledScrollHost(Control content)
     {
         Application.AddMessageFilter(this);
-        motion.Tick+=(_,_)=>{double t=Math.Clamp(motionClock.Elapsed.TotalMilliseconds/150,0,1);ScrollTo((int)Math.Round(scrollFrom+(scrollTarget-scrollFrom)*(1-Math.Pow(1-t,3))));if(t>=1)motion.Stop();};
+        motion.Tick+=(_,_)=>{
+            double dt=motionClock.Elapsed.TotalSeconds;motionClock.Restart();
+            scrollPosition+=(scrollTarget-scrollPosition)*(1-Math.Exp(-dt/0.045));
+            if(Math.Abs(scrollTarget-scrollPosition)<0.5){scrollPosition=scrollTarget;motion.Stop();}
+            ScrollTo((int)Math.Round(scrollPosition));
+        };
         this.content=content;DoubleBuffered=true;BackColor=content.BackColor==SystemColors.Control?DarkTheme.Surface:content.BackColor;
         content.BackColor=BackColor;viewport.BackColor=BackColor;
         rail=new Rail(this){Dock=DockStyle.Right,Width=14};Controls.Add(viewport);Controls.Add(rail);
@@ -44,8 +49,13 @@ internal sealed class StyledScrollHost : Panel, IMessageFilter
     }
     private void Fit()=>content.Bounds=new Rectangle(0,0,Math.Max(1,viewport.ClientSize.Width+SystemInformation.VerticalScrollBarWidth),Math.Max(1,viewport.ClientSize.Height));
     private (int Top,int Max,int Page) Range(){if(content is ScrollableControl scroll && !scroll.VerticalScroll.Visible)return(0,0,1);var info=new ScrollInfo{Size=Marshal.SizeOf<ScrollInfo>(),Mask=0x17};if(!content.IsHandleCreated||!GetScrollInfo(content.Handle,1,ref info))return(0,0,1);return(info.Position,Math.Max(0,info.Maximum-(int)info.Page+1),Math.Max(1,(int)info.Page));}
-    private void ScrollTo(int value){var range=Range();value=Math.Clamp(value,0,range.Max);if(content is ScrollableControl scroll)scroll.AutoScrollPosition=new Point(0,value);else{SetScrollPos(content.Handle,1,value,true);SendMessage(content.Handle,0x115,new IntPtr((value<<16)|4),IntPtr.Zero);}rail.Invalidate();}
+    private void ScrollTo(int value){var range=Range();value=Math.Clamp(value,0,range.Max);if(value==range.Top)return;if(content is ScrollableControl scroll)scroll.AutoScrollPosition=new Point(0,value);else{SetScrollPos(content.Handle,1,value,true);SendMessage(content.Handle,0x115,new IntPtr((value<<16)|4),IntPtr.Zero);}rail.Invalidate();}
     protected override void Dispose(bool disposing){if(disposing){Application.RemoveMessageFilter(this);motion.Dispose();sync.Dispose();}base.Dispose(disposing);}
+    // Compose native child windows together so scrolling cannot expose intermediate backgrounds.
+    private sealed class CompositedViewport : Panel
+    {
+        protected override CreateParams CreateParams { get {var cp=base.CreateParams;cp.ExStyle|=0x02000000;return cp;} }
+    }
     private sealed class Rail : Control
     {
         private readonly StyledScrollHost owner;private bool dragging;private int offset;

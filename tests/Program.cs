@@ -38,12 +38,15 @@ Assert(notesRelease.Notes == "## What's new\n- New feature", "Release notes are 
 Assert(SimpleAimOverlay.AppUpdater.ParseRelease(json)!.Notes == "", "Older metadata without notes remains supported");
 Assert(SimpleAimOverlay.UpdateAvailableWindow.DisplayNotes("one\ntwo") == "one" + Environment.NewLine + "two", "Notes preserve line breaks");
 Assert(!string.IsNullOrWhiteSpace(SimpleAimOverlay.UpdateAvailableWindow.DisplayNotes("  ")), "Empty release notes have a fallback");
+string concise = SimpleAimOverlay.UpdateAvailableWindow.ConciseNotes("Version 0.2.13\nWhat's new\n- **Grouped settings.** More detail.\n\nValidation: passed\nVersion 0.2.12\n- Update notes.");
+Assert(concise.Contains("Version 0.2.13") && concise.Contains("Version 0.2.12") && concise.Contains("•  Grouped settings.") && !concise.Contains("More detail") && !concise.Contains("Validation:"), "Concise notes retain version headings and feature bullets only");
 using(var notesDialog = new SimpleAimOverlay.UpdateAvailableWindow(notesRelease with { Notes = string.Join("\n", Enumerable.Repeat("Long release note", 200)) })) {
     notesDialog.Show(); Application.DoEvents();
     var panel = (TableLayoutPanel)notesDialog.Controls[0];
-    var notesBox = (TextBox)panel.GetControlFromPosition(0,1)!;
+    var notesBox = (RichTextBox)panel.GetControlFromPosition(0,1)!;
     var actions = (TableLayoutPanel)panel.GetControlFromPosition(0,3)!;
-    Assert(notesBox.ReadOnly && notesBox.ScrollBars == ScrollBars.Vertical, "Long notes are read-only and scrollable");
+    Assert(notesBox.ReadOnly && notesBox.ScrollBars == RichTextBoxScrollBars.Vertical, "Long notes are read-only and scrollable");
+    Assert(notesBox.SelectionLength == 0 && !notesBox.Focused, "Opening update notes does not select all text");
     Assert(notesBox.Bottom <= actions.Top && actions.Bottom <= panel.Height, "Long notes cannot cover update actions");
     notesDialog.Close();
 }

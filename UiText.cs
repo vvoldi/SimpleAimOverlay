@@ -9,6 +9,11 @@ internal static class UiText
     private sealed class Caption { public string English=""; public bool Updating; }
     private static readonly ConditionalWeakTable<Control,Caption> captions=new();
     private static readonly Dictionary<string,string> Ukrainian=new(StringComparer.Ordinal) {
+        ["Share crosshair with OBS"]="Передавати приціл в OBS",
+        ["Copy OBS browser URL"]="Копіювати адресу для OBS",
+        ["Browser source"]="Джерело браузера", ["OBS status"]="Стан OBS",
+        ["OBS unavailable"]="OBS недоступний",
+        ["URL copied. Add a Browser source above Game Capture."]="Адресу скопійовано. Додай джерело браузера над грою.",
         ["Create desktop shortcut"]="Створити ярлик на робочому столі",
         ["Desktop shortcut created."]="Ярлик на робочому столі створено.",
         ["Desktop"]="Робочий стіл",

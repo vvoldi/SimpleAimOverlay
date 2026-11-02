@@ -23,6 +23,12 @@ Updates are checked **once at launch**, or manually in **Settings → Check for 
 
 Fullscreen compatibility depends on the game and graphics mode. No game hooks are used.
 
+## OBS game capture (next release)
+
+Enable **Settings → OBS → Share crosshair with OBS**. Copy the browser URL and add a **Browser** source above your Game Capture source in OBS. Set its width and height to the monitor resolution shown in OBS status, then fit it to the same game area. The background is transparent; color, geometry, F8 and hold-to-hide follow the app. With selected-game mode enabled, the stream crosshair also hides outside that game. Keep the app running; the connection stays on your PC.
+
+Start the app before OBS. If OBS opened while sharing was off, refresh the Browser source after enabling sharing. Match the source's position and bounds to Game Capture so the crosshair stays centered when the OBS canvas uses a different resolution.
+
 ## Screenshots
 
 Click an image to view it at full size.

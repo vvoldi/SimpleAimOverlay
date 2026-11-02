@@ -8,6 +8,7 @@ internal static class FeatureChecks
 {
     static void Assert(bool value,string reason){if(!value)throw new Exception(reason);}
     internal static void Run(){
+        ObsChecks.Run();
         using (var hidden = new ControlWindow(new StoreData(), true))
         {
             int shown = 0; hidden.Shown += (_, _) => shown++;

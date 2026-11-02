@@ -76,6 +76,7 @@ internal sealed class StoreData
     public bool MinimizeToTrayOnClose { get; set; } = true;
     public bool MinimizeToTray { get; set; }
     public bool LaunchWithGame { get; set; }
+    public bool ObsEnabled { get; set; }
     public string Language { get; set; } = "en";
     public string Theme { get; set; } = "dark";
     public string GameExecutable { get; set; } = GameLauncher.FindPubg();
@@ -122,6 +123,8 @@ internal sealed class ControlWindow : Form
     private bool initializing = true;
     private bool holdDown, desiredVisible = true, allowExit, trayInteracting;
     private bool runtimeStarted, gameForeground;
+    private ObsOverlayServer? obsServer;
+    private readonly Label obsStatus = new() { AutoSize = true };
     private long nextGameFocusCheck;
     private readonly DarkCheckBox minimizeToTray = new(), launchWithGame = new();
     private readonly TextBox gameExecutable = new() { BackColor = DarkTheme.Input, ForeColor = DarkTheme.Text, BorderStyle = BorderStyle.FixedSingle };
@@ -170,7 +173,7 @@ internal sealed class ControlWindow : Form
             {
                 e.Cancel = true; Hide(); return;
             }
-            updater.Dispose(); holdTimer.Stop(); holdTimer.Dispose(); openWindowSignal?.Dispose(); UnregisterHotKey(Handle, HotkeyId); tray.Visible = false; tray.Dispose(); overlay.Close();
+            obsServer?.Dispose(); updater.Dispose(); holdTimer.Stop(); holdTimer.Dispose(); openWindowSignal?.Dispose(); UnregisterHotKey(Handle, HotkeyId); tray.Visible = false; tray.Dispose(); overlay.Close();
         };
         ApplyTheme();
     }
@@ -199,7 +202,7 @@ internal sealed class ControlWindow : Form
         StartupDiagnostics.Write(Visible ? "Application window shown" : "Application started in tray");
         try { StartupRegistration.Migrate(data); }
         catch (Exception ex) { DarkMessage.Show(this, ex.Message, "Simple Aim Overlay"); }
-        RefreshRuntimeVisibility(); BindHotkey(); holdTimer.Start();
+        ConfigureObs(); RefreshRuntimeVisibility(); BindHotkey(); holdTimer.Start();
         if (data.LaunchWithGame) GameLauncher.StartWatcher();
         await CheckUpdates(false);
     }
@@ -303,6 +306,12 @@ internal sealed class ControlWindow : Form
             catch (Exception ex) { DarkMessage.Show(this, ex.Message, "Simple Aim Overlay", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         };
         AddRow(grid, "Desktop", desktopShortcut);
+        var obsEnabled = new DarkCheckBox { Text = "Share crosshair with OBS", Checked = data.ObsEnabled, AutoSize = true };
+        obsEnabled.CheckedChanged += (_, _) => { if (initializing) return; data.ObsEnabled = obsEnabled.Checked; ConfigureObs(); RefreshRuntimeVisibility(); SaveData(); };
+        AddRow(grid, "OBS", obsEnabled);
+        var obsCopy = Button("Copy OBS browser URL", DarkTheme.SurfaceHover, DarkTheme.Text);
+        obsCopy.Click += (_, _) => { Clipboard.SetText(ObsOverlayServer.BrowserUrl); obsStatus.Text = UiText.T("URL copied. Add a Browser source above Game Capture."); };
+        AddRow(grid, "Browser source", obsCopy); AddRow(grid, "OBS status", obsStatus);
         closeToTray.Text = "Minimize to tray when closed"; closeToTray.AutoSize = true; AddRow(grid, "Close button", closeToTray);
         minimizeToTray.Text = "Minimize to tray with the − button"; AddRow(grid, "Minimize button", minimizeToTray);
         minimizeToTray.CheckedChanged += (_, _) => { if (!initializing) { data.MinimizeToTray = minimizeToTray.Checked; SaveData(); } };
@@ -501,8 +510,25 @@ internal sealed class ControlWindow : Form
         bool hiddenByHold = runtimeSettings.HideWhileHeld && holdDown;
         gameForeground = !data.LaunchWithGame || GameLauncher.IsForegroundTarget(data.GameExecutable);
         runtimeSettings.Visible = GameLauncher.ShouldShow(runtimeSettings.Visible, hiddenByHold, data.LaunchWithGame, gameForeground);
-        if (runtimeStarted) overlay.UpdateAim(runtimeSettings, aimColor, borderColor, SelectedScreen());
+        if (runtimeStarted)
+        {
+            overlay.UpdateAim(runtimeSettings, aimColor, borderColor, SelectedScreen());
+            try { obsServer?.Publish(runtimeSettings, aimColor, borderColor, SelectedScreen().Bounds.Size); }
+            catch (Exception ex) { obsServer?.Dispose(); obsServer = null; obsStatus.Text = UiText.T("OBS unavailable") + ": " + ex.Message; }
+        }
         status.Text = StatusText(hiddenByHold, runtimeSettings);
+    }
+    private void ConfigureObs()
+    {
+        if (previewMode) return;
+        if (!data.ObsEnabled) { obsServer?.Dispose(); obsServer = null; obsStatus.Text = UiText.T("Disabled"); return; }
+        try
+        {
+            obsServer ??= new ObsOverlayServer();
+            var size = SelectedScreen().Bounds.Size;
+            obsStatus.Text = $"{size.Width} × {size.Height} · {ObsOverlayServer.BrowserUrl}";
+        }
+        catch (Exception ex) { obsStatus.Text = UiText.T("OBS unavailable") + ": " + ex.Message; }
     }
     private string StatusText(bool? hidden = null, AimSettings? current = null)
     {

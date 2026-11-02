@@ -2,7 +2,7 @@
 
 A customizable crosshair for **Windows 10/11, 64-bit**. English and Ukrainian. No account required.
 
-**[Download 0.2.15 — Windows installer](https://github.com/vvoldi/SimpleAimOverlay/releases/download/v0.2.15/SimpleAimOverlay-0.2.15-Setup.exe)** · [All releases](https://github.com/vvoldi/SimpleAimOverlay/releases)
+**[Download 0.2.16 — Windows installer](https://github.com/vvoldi/SimpleAimOverlay/releases/download/v0.2.16/SimpleAimOverlay-0.2.16-Setup.exe)** · [All releases](https://github.com/vvoldi/SimpleAimOverlay/releases)
 
 ## Install & update
 
@@ -11,6 +11,8 @@ Run the EXE and approve the administrator prompt. On first installation, setup a
 Updates are checked **once at launch**, or manually in **Settings → Check for updates**. The update prompt shows release notes before you download. After downloading and verifying the package, choose **Update and restart** to install it, or **Not now** to keep working. Download progress, verification and installation stages are shown. Your settings and drawings are kept; the updater also saves a configuration backup before installation. Exit the app through its tray menu before a manual update.
 
 ## Make it yours
+
+Crosshair appearance updates live. Choose **Apply changes** below the preview to save it, or **Revert changes** to restore the last confirmed appearance. Closing settings also discards unconfirmed appearance changes. Hotkeys and app preferences still save immediately.
 
 - **Tray startup:** Windows and game-triggered launches start in the tray. Double-click the tray icon or open the desktop shortcut to show settings.
 - **Desktop shortcut:** select it during installation, or use **Settings → Desktop → Create desktop shortcut** later.

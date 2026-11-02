@@ -10,6 +10,26 @@ internal static class FeatureChecks
     internal static void Run(){
         ObsChecks.Run();
         ReleaseNotesChecks.Run();
+        var draftAim = new AimSettings { Size = 20, Thickness = 2, Gap = 5, Color = "#00FF00" };
+        var draft = new CrosshairDraft(draftAim);
+        draftAim.Size = 70; draftAim.OffsetX = 10; draftAim.Hotkey = "F9"; draftAim.Visible = false;
+        Assert(draft.HasChanges(draftAim), "Live crosshair edits mark the draft dirty");
+        draft.Restore(draftAim);
+        Assert(draftAim.Size == 20 && draftAim.OffsetX == 0 && draftAim.Hotkey == "F9" && !draftAim.Visible, "Revert restores appearance without undoing hotkeys or visibility");
+        draftAim.Thickness = 1.5f; draft.Commit(draftAim); draftAim.Thickness = 4; draft.Restore(draftAim);
+        Assert(draftAim.Thickness == 1.5f && !draft.HasChanges(draftAim), "Apply becomes the next revert baseline");
+        using (var draftWindow = new ControlWindow(new StoreData())) {
+            draftWindow.Show(); Application.DoEvents();
+            var model = (StoreData)typeof(ControlWindow).GetField("data", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(draftWindow)!;
+            int originalSize = model.Current.Size;
+            var slider = (DarkSlider)typeof(ControlWindow).GetField("size", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(draftWindow)!;
+            slider.Value = originalSize + 10;
+            Assert(model.Current.Size == originalSize + 10, "Unconfirmed changes still update live settings");
+            var persisted = (StoreData)typeof(ControlWindow).GetMethod("SavedData", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(draftWindow,null)!;
+            Assert(persisted.Current.Size == originalSize, "Saving unrelated settings cannot persist an unconfirmed crosshair");
+            draftWindow.Close();
+            Assert(model.Current.Size == originalSize, "Closing settings reverts unconfirmed crosshair edits");
+        }
         using (var picker = new DarkColorPicker { Color = Color.FromArgb(128, 92, 255, 0) }) {
             picker.Show(); Application.DoEvents();
             var inputs = picker.Controls.OfType<DarkNumberBox>().ToArray();

@@ -103,6 +103,9 @@ internal sealed class ControlWindow : Form
 {
     private const int WM_HOTKEY = 0x0312, HotkeyId = 0x51A1;
     private StoreData data;
+    private CrosshairDraft? crosshairDraft;
+    private readonly Button applyChanges = new RoundedButton(), revertChanges = new RoundedButton();
+    private readonly Label draftStatus = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter };
     private readonly bool previewMode;
     private readonly OverlayWindow overlay = new();
     private readonly DarkTabHost tabs = new();
@@ -160,6 +163,7 @@ internal sealed class ControlWindow : Form
         foreach (var profile in data.Profiles) if (profile.Aim.Shape == "Image" && BundledCrosshairs.Contains(Path.GetFileName(profile.Aim.ImagePath), StringComparer.OrdinalIgnoreCase)) profile.Aim.Shape = "Cross";
         if (data.Current.Shape == "Image" && BundledCrosshairs.Contains(Path.GetFileName(data.Current.ImagePath), StringComparer.OrdinalIgnoreCase)) data.Current.Shape = "Cross";
         BuildLayout(); LoadCurrent(); initializing = false; Apply(); PopulateImages();
+        crosshairDraft = new CrosshairDraft(data.Current); RefreshDraftActions();
         tray.Icon = BrandIcon.Load(); tray.Text = "Simple Aim Overlay"; tray.Visible = !previewMode;
         var menu = new ContextMenuStrip { BackColor = DarkTheme.Surface, ForeColor = DarkTheme.Text, Renderer = new ToolStripProfessionalRenderer(new DarkColorTable()) };
         menu.Items.Add("Open", GlyphPainter.Create("aim", 16, DarkTheme.Accent), (_, _) => RestoreWindow()); menu.Items.Add("Show / hide", GlyphPainter.Create("visibility", 16), (_, _) => ToggleVisible()); menu.Items.Add("Exit", GlyphPainter.Create("delete", 16), (_, _) => { allowExit = true; Close(); }); tray.ContextMenuStrip = menu;
@@ -172,6 +176,7 @@ internal sealed class ControlWindow : Form
         Shown += async (_, _) => await StartRuntime();
         FormClosing += (_, e) =>
         {
+            RevertCrosshair();
             if (!allowExit && e.CloseReason == CloseReason.UserClosing && data.MinimizeToTrayOnClose)
             {
                 e.Cancel = true; Hide(); return;
@@ -237,10 +242,20 @@ internal sealed class ControlWindow : Form
         tabs.AddPage("Feedback","feedback",new FeedbackPanel(()=>data));
         root.Controls.Add(tabs, 0, 1);
         var right = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Padding = new Padding(18, 10, 0, 0), BackColor = DarkTheme.Window };
-        right.RowStyles.Add(new RowStyle(SizeType.Absolute, 32)); right.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); right.RowStyles.Add(new RowStyle(SizeType.Absolute, 112));
+        right.RowStyles.Add(new RowStyle(SizeType.Absolute, 32)); right.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); right.RowStyles.Add(new RowStyle(SizeType.Absolute, 240));
         right.Controls.Add(new Label { Text = "LIVE PREVIEW", Font = AppFonts.Semibold(9), ForeColor = DarkTheme.Muted, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, BackColor = DarkTheme.Window }, 0, 0);
         preview.Dock = DockStyle.Fill; preview.BackColor = DarkTheme.Preview; preview.Paint += (_, e) => AimRenderer.Draw(e.Graphics, preview.ClientRectangle, data.Current, aimColor, borderColor, true); right.Controls.Add(preview, 0, 1);
         var bottom = new Panel { Dock = DockStyle.Fill, BackColor = DarkTheme.Window };
+        var draftActions = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 144, ColumnCount = 1, RowCount = 3, Padding = new Padding(0, 8, 0, 8) };
+        draftActions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        draftActions.RowStyles.Add(new RowStyle(SizeType.Absolute, 46)); draftActions.RowStyles.Add(new RowStyle(SizeType.Absolute, 46)); draftActions.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        applyChanges.Text = "Apply changes"; applyChanges.BackColor = DarkTheme.Accent; applyChanges.ForeColor = DarkTheme.Window;
+        revertChanges.Text = "Revert changes"; revertChanges.BackColor = DarkTheme.SurfaceHover; revertChanges.ForeColor = DarkTheme.Text;
+        applyChanges.Dock = revertChanges.Dock = DockStyle.Fill; applyChanges.Margin = revertChanges.Margin = new Padding(0, 3, 0, 3);
+        applyChanges.Click += (_, _) => { crosshairDraft?.Commit(data.Current); SaveData(); RefreshDraftActions(); };
+        revertChanges.Click += (_, _) => RevertCrosshair();
+        draftActions.Controls.Add(applyChanges, 0, 0); draftActions.Controls.Add(revertChanges, 0, 1); draftActions.Controls.Add(draftStatus, 0, 2);
+        bottom.Controls.Add(draftActions);
         toggleButton.Text = "Crosshair: ON"; toggleButton.Image = GlyphPainter.Create("visibility", 18, DarkTheme.Window); toggleButton.ImageAlign = ContentAlignment.MiddleLeft; toggleButton.TextImageRelation = TextImageRelation.ImageBeforeText; toggleButton.BackColor = DarkTheme.Accent; toggleButton.ForeColor = DarkTheme.Window; toggleButton.Font = AppFonts.Semibold(10); toggleButton.FlatStyle = FlatStyle.Flat; toggleButton.FlatAppearance.BorderSize = 0; toggleButton.Dock = DockStyle.Top; toggleButton.Height = 44; toggleButton.Click += (_, _) => ToggleVisible(); bottom.Controls.Add(toggleButton);
         status.Text = "F8 toggles · Right Mouse temporarily hides"; status.Dock = DockStyle.Bottom; status.Height = 42; status.ForeColor = DarkTheme.Muted; status.TextAlign = ContentAlignment.MiddleCenter; status.BackColor = DarkTheme.Window; bottom.Controls.Add(status); right.Controls.Add(bottom, 0, 2); root.Controls.Add(right, 1, 1);
     }
@@ -348,7 +363,26 @@ internal sealed class ControlWindow : Form
         return p;
     }
 
-    private void SaveData() { if(!previewMode)Store.Save(data); }
+    private StoreData SavedData()
+    {
+        var saved = JsonSerializer.Deserialize<StoreData>(JsonSerializer.Serialize(data))!;
+        crosshairDraft?.Restore(saved.Current); return saved;
+    }
+    private void SaveData() { if(!previewMode)Store.Save(crosshairDraft == null ? data : SavedData()); }
+    private void RefreshDraftActions()
+    {
+        bool dirty = crosshairDraft?.HasChanges(data.Current) == true;
+        applyChanges.Enabled = revertChanges.Enabled = dirty;
+        draftStatus.Text = dirty ? "Unsaved crosshair changes" : "Crosshair changes saved";
+    }
+    private void RevertCrosshair()
+    {
+        if (crosshairDraft?.HasChanges(data.Current) != true) return;
+        crosshairDraft.Restore(data.Current);
+        initializing = true;
+        try { LoadCurrent(); } finally { initializing = false; }
+        Apply();
+    }
     private void ApplyTheme()
     {
         DarkTheme.Select(data.Theme=="light",this);
@@ -519,7 +553,7 @@ internal sealed class ControlWindow : Form
         images.Invalidate(); RefreshColorSwatches();
         if (monitor.SelectedItem is MonitorItem mi) s.Monitor = mi.Screen.DeviceName;
         s.Hotkey = hotkey.Binding;
-        RefreshRuntimeVisibility(); preview.Invalidate(); SaveData(); BindHotkey();
+        RefreshRuntimeVisibility(); preview.Invalidate(); SaveData(); BindHotkey(); RefreshDraftActions();
     }
     private Screen SelectedScreen() => monitor.SelectedItem is MonitorItem mi ? mi.Screen : Screen.PrimaryScreen ?? Screen.AllScreens[0];
     private void PickColor(bool isOutline)
@@ -670,11 +704,11 @@ internal sealed class ControlWindow : Form
         dialog.Filter=UiText.T("Aim Overlay configuration|*.aimconfig");dialog.DefaultExt="aimconfig"; dialog.Title=UiText.T(import?"Import configuration":"Export configuration");
         if(dialog.ShowDialog(this)!=DialogResult.OK)return;
         try{
-            if(!import){ConfigurationTransfer.Export(dialog.FileName,data);return;}
+            if(!import){ConfigurationTransfer.Export(dialog.FileName,SavedData());return;}
             var incoming=ConfigurationTransfer.Import(dialog.FileName);
             ConfigurationTransfer.Backup();
             incoming.Current.StartWithWindows=data.Current.StartWithWindows;incoming.LaunchWithGame=data.LaunchWithGame;incoming.GameExecutable=data.GameExecutable;
-            data=incoming;initializing=true;LoadCurrent();PopulateImages();initializing=false;ApplyLanguage();ApplyTheme();Apply();
+            data=incoming;crosshairDraft=new CrosshairDraft(data.Current);initializing=true;LoadCurrent();PopulateImages();initializing=false;ApplyLanguage();ApplyTheme();Apply();
         }catch(Exception ex){initializing=false;DarkMessage.Show(this,ex.Message,"Configuration");}
     }
     private void CreateImage() => OpenPixelEditor(null, "New crosshair");

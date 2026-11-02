@@ -9,6 +9,10 @@ internal static class UiText
     private sealed class Caption { public string English=""; public bool Updating; }
     private static readonly ConditionalWeakTable<Control,Caption> captions=new();
     private static readonly Dictionary<string,string> Ukrainian=new(StringComparer.Ordinal) {
+        ["Crosshair appearance"]="Вигляд прицілу", ["Shape and dimensions"]="Форма та розміри", ["Outline styling"]="Оформлення обведення",
+        ["Screen placement"]="Розміщення на екрані", ["Interface preferences"]="Інтерфейс", ["Visibility and shortcuts"]="Видимість і гарячі клавіші",
+        ["Temporary hiding"]="Тимчасове приховування", ["Launch and shortcuts"]="Запуск і ярлики", ["OBS streaming"]="Трансляція через OBS",
+        ["Window and tray"]="Вікно та трей", ["Game integration"]="Взаємодія з грою", ["Updates and data"]="Оновлення та дані",
         ["What's new"]="Що нового", ["Download update"]="Завантажити оновлення",
         ["Some release notes could not be loaded. The list below may be incomplete."]="Не вдалося завантажити частину описів змін. Список нижче може бути неповним.",
         ["No release notes were provided."]="Опис змін для цієї версії відсутній.",

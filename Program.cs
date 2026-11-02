@@ -363,6 +363,7 @@ internal sealed class ControlWindow : Form
     {
         UiText.Language=data.Language=="uk"?"uk":"en";
         UiText.Apply(this);
+        RefreshHelpLanguage(this);
         foreach(Form form in OwnedForms)UiText.Apply(form);
         if(tray.ContextMenuStrip is { } menu) {
             string[] names=["Open","Show / hide","Exit"];
@@ -378,10 +379,29 @@ internal sealed class ControlWindow : Form
         try { StartupRegistration.Configure(data.Current.StartWithWindows, launchWithGame.Checked); if (!launchWithGame.Checked) GameLauncher.StopWatcher(); data.GameExecutable = selected; data.LaunchWithGame = launchWithGame.Checked; SaveData(); RefreshRuntimeVisibility(); if (data.LaunchWithGame) GameLauncher.StartWatcher(); }
         catch (Exception ex) { DarkMessage.Show(this, ex.Message, "Game startup"); }
     }
+    private static void RefreshHelpLanguage(Control root)
+    {
+        if (root is SettingHelpButton help) help.RefreshLanguage();
+        foreach (Control child in root.Controls) RefreshHelpLanguage(child);
+    }
     private Task CheckUpdates(bool manual) => updater.CheckAsync(this, manual, text => { if (!IsDisposed) updateStatus.Text = text; }, () => { allowExit = true; Close(); });
     private TableLayoutPanel Grid() => new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 2, RowCount = 0, Padding = new Padding(0, 2, 4, 2), BackColor = DarkTheme.Surface }.Also(g => { g.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150)); g.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); });
     private static void AddRow(TableLayoutPanel grid, string label, Control control)
     {
+        string? section = label switch {
+            "Style" => "Crosshair appearance", "Size" => "Shape and dimensions", "Outline" => "Outline styling",
+            "Center offset" => "Screen placement", "Language" => "Interface preferences", "Visibility" => "Visibility and shortcuts",
+            "Hold to hide" => "Temporary hiding", "Startup" => "Launch and shortcuts", "OBS" => "OBS streaming",
+            "Close button" => "Window and tray", "Selected game" => "Game integration", "Updates" => "Updates and data", _ => null
+        };
+        if (section != null) {
+            int headingRow = grid.RowCount++;
+            grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
+            var heading = new Label { Text = section, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft,
+                Font = AppFonts.Semibold(10), ForeColor = DarkTheme.Text, BackColor = DarkTheme.SurfaceHover,
+                Padding = new Padding(12, 0, 0, 0), Margin = new Padding(0, headingRow == 0 ? 0 : 10, 0, 5) };
+            grid.Controls.Add(heading, 0, headingRow); grid.SetColumnSpan(heading, 2);
+        }
         // Nested button margins count towards the row height, including wrapped rows.
         bool flowing = control is FlowLayoutPanel;
         int row = grid.RowCount++; grid.RowStyles.Add(flowing ? new RowStyle(SizeType.AutoSize) : new RowStyle(SizeType.Absolute, 45));
@@ -389,7 +409,15 @@ internal sealed class ControlWindow : Form
         // Layout containers share the page background; only inputs need a dark fill.
         control.BackColor = control is Button ? control.BackColor : control is FlowLayoutPanel or TableLayoutPanel ? DarkTheme.Surface : DarkTheme.Input;
         control.ForeColor = control is Button ? control.ForeColor : DarkTheme.Text;
-        control.Dock = DockStyle.Fill; grid.Controls.Add(l, 0, row); grid.Controls.Add(control, 1, row);
+        string helpKey = string.IsNullOrEmpty(label) ? control.Text : label;
+        Control labelCell = l;
+        if (SettingsHelp.Has(helpKey)) {
+            var labelHost = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty, BackColor = DarkTheme.Surface };
+            labelHost.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); labelHost.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 30));
+            labelHost.Controls.Add(l, 0, 0); labelHost.Controls.Add(new SettingHelpButton(helpKey), 1, 0);
+            labelCell = labelHost;
+        }
+        control.Dock = DockStyle.Fill; grid.Controls.Add(labelCell, 0, row); grid.Controls.Add(control, 1, row);
         if (control is FlowLayoutPanel flow) {
             flow.AutoSize = true; flow.AutoSizeMode = AutoSizeMode.GrowAndShrink; flow.Dock = DockStyle.Top;
             flow.MinimumSize = new Size(0, 39);

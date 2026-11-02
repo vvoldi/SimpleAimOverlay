@@ -40,5 +40,17 @@ internal static class MotionChecks
             if(content.AutoScrollPosition.Y!=-100)throw new Exception("External scroll must cancel stale animation instead of snapping back");host.Close();
         }
         Console.WriteLine("PASS: dialogs fade to full opacity, slider values settle exactly, transition layers dispose and themed scrolling works.");
+        using(var host=new Form {ClientSize=new System.Drawing.Size(400,300)}) {
+            var list=new DarkListBox {Dock=DockStyle.Fill,BackColor=DarkTheme.Card,DrawMode=DrawMode.OwnerDrawFixed,ItemHeight=40};
+            list.DrawItem+=(_,e)=>e.Graphics.Clear(DarkTheme.Card);
+            for(int i=0;i<30;i++)list.Items.Add("Drawing "+i);
+            host.Controls.Add(list);host.Show();Settle();
+            using var frame=new System.Drawing.Bitmap(400,300);list.DrawToBitmap(frame,list.ClientRectangle);
+            for(int y=5;y<295;y++)for(int x=370;x<400;x++) {
+                var pixel=frame.GetPixel(x,y);
+                if(pixel.R>180 && pixel.G>180 && pixel.B>180)throw new Exception("Editor transition snapshot must not contain the clipped native white scrollbar");
+            }
+            host.Close();
+        }
     }
 }

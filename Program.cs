@@ -300,7 +300,10 @@ internal sealed class ControlWindow : Form
     }
     private Panel MakeLibraryTab()
     {
-        var p = Page("Editor"); var layout = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 1, BackColor = DarkTheme.Surface };
+        var p = Page("Editor");
+        // Only the drawing list scrolls. An outer native bar can appear during tab layout.
+        p.AutoScroll = false;
+        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 1, BackColor = DarkTheme.Surface };
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42)); layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); layout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); p.Controls.Add(layout);
         layout.Controls.Add(new Label { Text = "Your drawings. Create a crosshair or edit one you saved. Standard styles are in Crosshair.", ForeColor = DarkTheme.Muted, BackColor = DarkTheme.Surface, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
         images.Dock = DockStyle.Fill; images.IntegralHeight = false; images.BackColor = DarkTheme.Card; images.ForeColor = DarkTheme.Text; images.BorderStyle = BorderStyle.None; images.DrawMode = DrawMode.OwnerDrawFixed; images.ItemHeight = 72; images.DrawItem += DrawCrosshairItem; images.ItemDoubleClick += (_, _) => EditImage(); layout.Controls.Add(images, 0, 1);

@@ -19,6 +19,13 @@ internal static class UiMotion
         form.Disposed += (_,_) => timer.Dispose(); timer.Start();
     }
     internal static IDisposable Transition(Control host) => new TransitionFrame(host);
+    private static void PrepareFrame(Control control)
+    {
+        control.PerformLayout();
+        foreach(Control child in control.Controls)
+            if(child.Visible)PrepareFrame(child);
+        control.Update();
+    }
     private sealed class TransitionFrame : IDisposable
     {
         private readonly Control host;
@@ -49,7 +56,8 @@ internal static class UiMotion
             if(host.IsDisposed || current.IsDisposed){current.Dispose();return;}
             Bitmap? after=null;
             try {
-                host.PerformLayout();
+                // Complete nested layout and pending paints while the old frame still covers it.
+                PrepareFrame(host);
                 after=new Bitmap(host.Width,host.Height);host.DrawToBitmap(after,host.ClientRectangle);
                 current.Start(after);after=null;
             } catch {after?.Dispose();current.Dispose();}

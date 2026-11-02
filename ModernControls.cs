@@ -142,12 +142,14 @@ internal sealed class DarkTabHost : UserControl
     }
     private void SelectPage(int index)
     {
+        if(index==selected)return;
         using var transition = UiMotion.Transition(Parent ?? content);
         content.SuspendLayout();
         selected = index;
         for (int i = 0; i < pages.Count; i++)
         {
-            bool active = i == selected; pages[i].Page.Visible = active; pages[i].Page.BringToFront();
+            bool active = i == selected; pages[i].Page.Visible = active;
+            if(active)pages[i].Page.BringToFront();
             pages[i].Button.BackColor = active ? DarkTheme.Surface : DarkTheme.Window; pages[i].Button.ForeColor = active ? DarkTheme.Text : DarkTheme.Muted;
             pages[i].Button.Image?.Dispose(); pages[i].Button.Image = GlyphPainter.Create(pages[i].Glyph, 18, active ? DarkTheme.Accent : DarkTheme.Muted);
         }
@@ -285,7 +287,10 @@ internal sealed class DarkListBox : UserControl
     }
     private sealed class NativeList : ListBox {
         public Action? Changed; public Action<int>? Wheel;
-        protected override void WndProc(ref Message m){if(m.Msg == 0x20A) { Wheel?.Invoke(unchecked((short)(m.WParam.ToInt64() >> 16))); m.Result=IntPtr.Zero; return; } base.WndProc(ref m);if(m.Msg is 0x115 or 0x20A or 0x100 or 0x180 or 0x181 or 0x184 or 0x197 or 0x186)Changed?.Invoke();}
+        protected override void WndProc(ref Message m){
+            // The native bar is clipped during normal painting; never print it into transition frames.
+            if(m.Msg==0x317)m.LParam=new IntPtr(m.LParam.ToInt64() & ~2L);
+            if(m.Msg == 0x20A) { Wheel?.Invoke(unchecked((short)(m.WParam.ToInt64() >> 16))); m.Result=IntPtr.Zero; return; } base.WndProc(ref m);if(m.Msg is 0x115 or 0x20A or 0x100 or 0x180 or 0x181 or 0x184 or 0x197 or 0x186)Changed?.Invoke();}
     }
     private sealed class ScrollThumb : Control {
         readonly DarkListBox owner; bool dragging; int offset;

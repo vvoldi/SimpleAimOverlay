@@ -28,7 +28,16 @@ internal static class MotionChecks
             scroll.SmoothWheel(-120);scroll.SmoothWheel(-120);Settle();
             if(content.AutoScrollPosition.Y!=-296)throw new Exception("Smooth wheel must accumulate consecutive input and settle exactly");
             scroll.SmoothWheel(120);Settle();
-            if(content.AutoScrollPosition.Y!=-248)throw new Exception("Smooth wheel must reverse without jumping");host.Close();
+            if(content.AutoScrollPosition.Y!=-248)throw new Exception("Smooth wheel must reverse without jumping");
+            content.AutoScrollPosition=new System.Drawing.Point(0,200);
+            scroll.SmoothWheel(-480);scroll.SmoothWheel(120);Settle();
+            if(content.AutoScrollPosition.Y!=-152)throw new Exception("Reversing mid-animation must discard pending downward movement");
+            scroll.SmoothWheel(2400);Settle();
+            if(content.AutoScrollPosition.Y!=0)throw new Exception("Upward scrolling must stop at the top");
+            scroll.SmoothWheel(120);scroll.SmoothWheel(-120);Settle();
+            if(content.AutoScrollPosition.Y!=-48)throw new Exception("Scrolling away from the top must respond immediately");
+            scroll.SmoothWheel(-480);content.AutoScrollPosition=new System.Drawing.Point(0,100);Settle();
+            if(content.AutoScrollPosition.Y!=-100)throw new Exception("External scroll must cancel stale animation instead of snapping back");host.Close();
         }
         Console.WriteLine("PASS: dialogs fade to full opacity, slider values settle exactly, transition layers dispose and themed scrolling works.");
     }

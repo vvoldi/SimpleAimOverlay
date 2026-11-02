@@ -9,10 +9,13 @@ internal sealed class StyledScrollHost : Panel, IMessageFilter
     private double scrollPosition, scrollTarget;
     internal void SmoothWheel(int delta)
     {
-        var range=Range(); if(range.Max==0)return;
-        if(!motion.Enabled){scrollPosition=range.Top;motionClock.Restart();}
-        scrollTarget=Math.Clamp((motion.Enabled?scrollTarget:range.Top)-delta/120.0*48,0,range.Max);
-        if(!UiMotion.Enabled){ScrollTo((int)Math.Round(scrollTarget));return;}
+        var range=Range(); if(delta==0 || range.Max==0)return;
+        double step=-delta/120.0*48;
+        bool reversed=motion.Enabled && Math.Sign(step)!=Math.Sign(scrollTarget-scrollPosition);
+        bool movedExternally=Math.Abs(range.Top-scrollPosition)>1;
+        if(!motion.Enabled || reversed || movedExternally){scrollPosition=scrollTarget=range.Top;motionClock.Restart();}
+        scrollTarget=Math.Clamp(scrollTarget+step,0,range.Max);
+        if(!UiMotion.Enabled){motion.Stop();ScrollTo((int)Math.Round(scrollTarget));return;}
         motion.Start();
     }
     public bool PreFilterMessage(ref Message message)
@@ -21,7 +24,7 @@ internal sealed class StyledScrollHost : Panel, IMessageFilter
         var target=Control.FromChildHandle(message.HWnd);
         if(target==null || (target!=content && !content.Contains(target)))return false;
         for(Control? node=target;node!=null && node!=content;node=node.Parent)
-            if(node is ComboBox or NumericUpDown or TextBoxBase or DarkSlider or StyledScrollHost)return false;
+            if(node is ComboBox or NumericUpDown or TextBoxBase or StyledScrollHost){motion.Stop();return false;}
         if(Range().Max==0)return false;
         SmoothWheel(unchecked((short)((long)message.WParam>>16)));return true;
     }
@@ -34,6 +37,10 @@ internal sealed class StyledScrollHost : Panel, IMessageFilter
     {
         Application.AddMessageFilter(this);
         motion.Tick+=(_,_)=>{
+            var range=Range();
+            // Native scrolling, focus changes or layout must not fight an old animation target.
+            if(Math.Abs(range.Top-scrollPosition)>1){motion.Stop();scrollPosition=scrollTarget=range.Top;return;}
+            scrollTarget=Math.Clamp(scrollTarget,0,range.Max);
             double dt=motionClock.Elapsed.TotalSeconds;motionClock.Restart();
             scrollPosition+=(scrollTarget-scrollPosition)*(1-Math.Exp(-dt/0.045));
             if(Math.Abs(scrollTarget-scrollPosition)<0.5){scrollPosition=scrollTarget;motion.Stop();}

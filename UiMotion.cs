@@ -22,13 +22,18 @@ internal static class UiMotion
     private sealed class TransitionFrame : IDisposable
     {
         private readonly Control host; private Bitmap? before;
+        [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern IntPtr SendMessage(IntPtr window,int message,IntPtr wparam,IntPtr lparam);
+        private bool frozen;
         internal TransitionFrame(Control host) {
             this.host=host;
             if (!Enabled || !host.Visible || !host.IsHandleCreated || host.Width<1 || host.Height<1) return;
             foreach(var old in (host is TableLayoutPanel && host.Parent!=null ? host.Parent : host).Controls.OfType<FadeLayer>().ToArray()) old.Dispose();
-            try { before=new Bitmap(host.Width,host.Height); host.DrawToBitmap(before,host.ClientRectangle); } catch { before?.Dispose();before=null; }
+            try { before=new Bitmap(host.Width,host.Height); host.DrawToBitmap(before,host.ClientRectangle); SendMessage(host.Handle,0xB,IntPtr.Zero,IntPtr.Zero); frozen=true; } catch { before?.Dispose();before=null; }
         }
         public void Dispose() {
+            try { Complete(); } finally { if(frozen && !host.IsDisposed){SendMessage(host.Handle,0xB,new IntPtr(1),IntPtr.Zero);host.Invalidate(true);} frozen=false; }
+        }
+        private void Complete() {
             if(before==null)return;
             if(host.IsDisposed){before.Dispose();return;}
             Bitmap after;

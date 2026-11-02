@@ -23,7 +23,11 @@ internal static class MotionChecks
         using(var content=new Panel{AutoScroll=true})using(var host=new Form()){
             content.Controls.Add(new Panel{Height=1500,Dock=DockStyle.Top});var scroll=new StyledScrollHost(content){Dock=DockStyle.Fill};host.Controls.Add(scroll);host.Show();Settle();
             content.AutoScrollPosition=new System.Drawing.Point(0,200);Settle();
-            if(content.AutoScrollPosition.Y>=0)throw new Exception("Themed scrollbar host must preserve scrolling");host.Close();
+            if(content.AutoScrollPosition.Y>=0)throw new Exception("Themed scrollbar host must preserve scrolling");
+            scroll.SmoothWheel(-120);scroll.SmoothWheel(-120);Settle();
+            if(content.AutoScrollPosition.Y!=-296)throw new Exception("Smooth wheel must accumulate consecutive input and settle exactly");
+            scroll.SmoothWheel(120);Settle();
+            if(content.AutoScrollPosition.Y!=-248)throw new Exception("Smooth wheel must reverse without jumping");host.Close();
         }
         Console.WriteLine("PASS: dialogs fade to full opacity, slider values settle exactly, transition layers dispose and themed scrolling works.");
     }

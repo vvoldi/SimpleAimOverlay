@@ -64,6 +64,11 @@ internal sealed class SettingHelpButton : Button
     }
     protected override void OnMouseLeave(EventArgs e) { tips?.Hide(this); hovered = false; Invalidate(); base.OnMouseLeave(e); }
     protected override void OnMouseDown(MouseEventArgs e) { tips?.Hide(this); base.OnMouseDown(e); }
+    protected override void OnMouseMove(MouseEventArgs e) { base.OnMouseMove(e); tips?.EnsureAttached(this); }
+    protected override void OnMouseUp(MouseEventArgs e) {
+        base.OnMouseUp(e);
+        if(e.Button==MouseButtons.Left && ClientRectangle.Contains(e.Location))tips?.Attach(this, true);
+    }
     protected override void OnVisibleChanged(EventArgs e) { if (!Visible) tips?.Hide(this); base.OnVisibleChanged(e); }
     protected override void OnPaint(PaintEventArgs e)
     {
@@ -79,18 +84,30 @@ internal sealed class SettingHelpButton : Button
 
     private sealed class HelpTips
     {
-        private readonly ToolTip tip = new() { InitialDelay = 400, ReshowDelay = 150, AutoPopDelay = 15000, ShowAlways = false };
+        private readonly ToolTip tip = new() { AutoPopDelay = 15000, ShowAlways = true };
+        private readonly System.Windows.Forms.Timer delay = new() { Interval = 400 };
         private Control? active;
+        private SettingHelpButton? candidate;
         private bool disposed;
         internal HelpTips(Form owner) {
+            delay.Tick += (_,_) => { delay.Stop(); ShowActive(); };
             owner.Deactivate += (_,_) => HideActive();
-            owner.Disposed += (_,_) => { disposed = true; tip.Dispose(); active = null; };
+            owner.Activated += (_,_) => { if(candidate is { } button && UnderPointer(button))Attach(button); };
+            owner.Disposed += (_,_) => { disposed = true; delay.Dispose(); tip.Dispose(); active = null; candidate = null; };
         }
-        internal void Attach(SettingHelpButton control) {
+        private static bool UnderPointer(Control control) => !control.IsDisposed && control.Visible && control.Enabled && control.ClientRectangle.Contains(control.PointToClient(Cursor.Position));
+        internal void EnsureAttached(SettingHelpButton control) { if(active!=control)Attach(control); }
+        internal void Attach(SettingHelpButton control, bool immediate = false) {
             if (disposed) return;
-            HideActive(); active = control;
-            // Native hover behavior only: clicking cannot pin a second tooltip.
-            tip.SetToolTip(control, Wrap(control.AccessibleDescription ?? ""));
+            HideActive(); active = candidate = control;
+            control.RefreshLanguage();
+            // Explicit timing avoids native tooltip registration missing the first mouse-enter.
+            if(immediate)ShowActive();else delay.Start();
+        }
+        private void ShowActive() {
+            if(disposed || active is not { } control)return;
+            if(!UnderPointer(control)){HideActive();return;}
+            tip.Show(Wrap(control.AccessibleDescription ?? ""),control,new Point(control.Width+6,control.Height/2),15000);
         }
         private static string Wrap(string text) {
             var result = new System.Text.StringBuilder(); int column = 0;
@@ -101,11 +118,13 @@ internal sealed class SettingHelpButton : Button
             }
             return result.ToString();
         }
-        internal void Hide(Control control) { if (active == control) HideActive(); }
-        internal void Detach(Control control) { Hide(control); if (!disposed) tip.SetToolTip(control,null); }
+        internal void Hide(Control control) { if (active == control) HideActive(); if(candidate==control)candidate=null; }
+        internal void Detach(Control control) { Hide(control); }
         private void HideActive() {
-            if (disposed || active == null) return;
-            tip.Hide(active); tip.SetToolTip(active,null); active = null;
+            if (disposed) return;
+            delay.Stop();
+            if(active!=null)tip.Hide(active);
+            active = null;
         }
     }
 }

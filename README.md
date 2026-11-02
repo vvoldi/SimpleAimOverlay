@@ -2,7 +2,7 @@
 
 A customizable crosshair for **Windows 10/11, 64-bit**. English and Ukrainian. No account required.
 
-**[Download 0.2.20 — Windows installer](https://github.com/vvoldi/SimpleAimOverlay/releases/download/v0.2.20/SimpleAimOverlay-0.2.20-Setup.exe)** · [All releases](https://github.com/vvoldi/SimpleAimOverlay/releases)
+**[Download 0.2.21 — Windows installer](https://github.com/vvoldi/SimpleAimOverlay/releases/download/v0.2.21/SimpleAimOverlay-0.2.21-Setup.exe)** · [All releases](https://github.com/vvoldi/SimpleAimOverlay/releases)
 
 ## Install & update
 

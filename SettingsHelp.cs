@@ -43,19 +43,69 @@ internal static class SettingsHelp
     internal static string Get(string key) => Texts.TryGetValue(key, out var text) ? UiText.Language == "uk" ? text.Uk : text.En : "";
 }
 
-internal sealed class SettingHelpButton : RoundedButton
+internal sealed class SettingHelpButton : Button
 {
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Form, HelpTips> owners = new();
     private readonly string key;
-    private readonly ToolTip tip = new() { InitialDelay = 300, ReshowDelay = 100, AutoPopDelay = 20000, ShowAlways = true };
+    private HelpTips? tips;
+    private bool hovered;
     internal SettingHelpButton(string key)
     {
-        this.key = key; Text = "?"; Width = 24; Height = 24; Margin = new Padding(0, 10, 3, 0);
+        this.key = key; Text = "?"; Size = new Size(24,24); Margin = new Padding(0,10,3,0);
         FlatStyle = FlatStyle.Flat; FlatAppearance.BorderSize = 0; Cursor = Cursors.Help;
-        BackColor = DarkTheme.SurfaceHover; ForeColor = DarkTheme.Muted;
+        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
         RefreshLanguage();
-        Click += (_, _) => tip.Show(SettingsHelp.Get(key), this, 0, Height + 4, 20000);
     }
-    internal void RefreshLanguage() { AccessibleName = UiText.T(key); AccessibleDescription = SettingsHelp.Get(key); tip.SetToolTip(this, AccessibleDescription); }
-    protected override void OnMouseEnter(EventArgs e) { RefreshLanguage(); base.OnMouseEnter(e); }
-    protected override void Dispose(bool disposing) { if (disposing) tip.Dispose(); base.Dispose(disposing); }
+    internal void RefreshLanguage() { AccessibleName = UiText.T(key); AccessibleDescription = SettingsHelp.Get(key); }
+    protected override void OnMouseEnter(EventArgs e)
+    {
+        base.OnMouseEnter(e); hovered = true; Invalidate(); RefreshLanguage();
+        if (FindForm() is { } owner) { tips = owners.GetValue(owner, form => new HelpTips(form)); tips.Attach(this); }
+    }
+    protected override void OnMouseLeave(EventArgs e) { tips?.Hide(this); hovered = false; Invalidate(); base.OnMouseLeave(e); }
+    protected override void OnMouseDown(MouseEventArgs e) { tips?.Hide(this); base.OnMouseDown(e); }
+    protected override void OnVisibleChanged(EventArgs e) { if (!Visible) tips?.Hide(this); base.OnVisibleChanged(e); }
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        e.Graphics.Clear(Parent?.BackColor ?? DarkTheme.Surface);
+        e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        var bounds = new Rectangle(2,2,Width-5,Height-5);
+        using var pen = new Pen(hovered || Focused ? DarkTheme.Text : DarkTheme.Muted, 1);
+        e.Graphics.DrawEllipse(pen,bounds);
+        TextRenderer.DrawText(e.Graphics,"?",Font,ClientRectangle,hovered ? DarkTheme.Text : DarkTheme.Muted,
+            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
+    }
+    protected override void Dispose(bool disposing) { if (disposing) tips?.Detach(this); base.Dispose(disposing); }
+
+    private sealed class HelpTips
+    {
+        private readonly ToolTip tip = new() { InitialDelay = 400, ReshowDelay = 150, AutoPopDelay = 15000, ShowAlways = false };
+        private Control? active;
+        private bool disposed;
+        internal HelpTips(Form owner) {
+            owner.Deactivate += (_,_) => HideActive();
+            owner.Disposed += (_,_) => { disposed = true; tip.Dispose(); active = null; };
+        }
+        internal void Attach(SettingHelpButton control) {
+            if (disposed) return;
+            HideActive(); active = control;
+            // Native hover behavior only: clicking cannot pin a second tooltip.
+            tip.SetToolTip(control, Wrap(control.AccessibleDescription ?? ""));
+        }
+        private static string Wrap(string text) {
+            var result = new System.Text.StringBuilder(); int column = 0;
+            foreach (string word in text.Split(' ')) {
+                if (column + word.Length > 58) { result.AppendLine(); column = 0; }
+                if (column > 0) { result.Append(' '); column++; }
+                result.Append(word); column += word.Length;
+            }
+            return result.ToString();
+        }
+        internal void Hide(Control control) { if (active == control) HideActive(); }
+        internal void Detach(Control control) { Hide(control); if (!disposed) tip.SetToolTip(control,null); }
+        private void HideActive() {
+            if (disposed || active == null) return;
+            tip.Hide(active); tip.SetToolTip(active,null); active = null;
+        }
+    }
 }

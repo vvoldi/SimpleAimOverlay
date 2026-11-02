@@ -178,7 +178,10 @@ static void RunRenderingChecks(Assembly assembly) {
     var row=(Control)assembly.GetType("SimpleAimOverlay.GamePathRow")!.GetMethod("Create",BindingFlags.NonPublic|BindingFlags.Static)!.Invoke(null,[inputBox,browse])!;
     pathHost.Controls.Add(row);pathHost.Show();Application.DoEvents();
     Assert(browse.Height>=30&&browse.Width>=90&&browse.Bottom<=row.Height,"Game browse button fits its row");
-    Assert(inputBox.Right<browse.Left&&inputBox.Top>=0&&inputBox.Bottom<=row.Height,"Game path and Browse do not overlap or clip");pathHost.Close();
+    Assert(inputBox.Right<browse.Left&&inputBox.Top>=0&&inputBox.Bottom<=row.Height,"Game path and Browse do not overlap or clip");
+    Assert(inputBox.Top>=6 && inputBox.Parent!.Height-inputBox.Bottom>=6,"Game path has vertical breathing room");
+    typeof(Control).GetMethod("OnMouseDoubleClick",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(inputBox,[new MouseEventArgs(MouseButtons.Left,2,8,8,0)]);Application.DoEvents();
+    Assert(inputBox.SelectionLength==inputBox.TextLength,"Game path double-click selects the entire path");pathHost.Close();
     Console.WriteLine("PASS: opaque thin strokes, non-inverting gap, editor grid contrast, update progress display.");
 }
 sealed class Handler(string json):HttpMessageHandler{

@@ -20,7 +20,7 @@ internal sealed class FeedbackPanel : Panel
         Add(new Label{Text="Report a bug or suggest an improvement",Dock=DockStyle.Fill,ForeColor=DarkTheme.Text,Font=AppFonts.Semibold(12)},40);
         kind.Items.AddRange(["Bug report","Suggestion"]);kind.SelectedIndex=0;Add(kind,48);
         Add(new Label{Text="Describe what happened or what you would like to improve.",Dock=DockStyle.Fill,ForeColor=DarkTheme.Muted},44);
-        description.BackColor=DarkTheme.Input;description.ForeColor=DarkTheme.Text;Add(description,165);
+        description.BackColor=DarkTheme.Input;description.ForeColor=DarkTheme.Text;Add(new StyledScrollHost(description){Dock=DockStyle.Fill},165);
         Add(diagnostics,42);
         Add(new Label{Text="Automatically adds app/Windows versions, display sizes and crosshair settings. No account name, file paths, drawings or logs.",Dock=DockStyle.Fill,ForeColor=DarkTheme.Muted},68);
         Add(new Label{Text="Your report will be public on GitHub. No GitHub account needed. Review and confirm in your browser before sending.",Dock=DockStyle.Fill,ForeColor=DarkTheme.Muted},66);
@@ -37,7 +37,7 @@ internal sealed class FeedbackPanel : Panel
     {
         public FeedbackPreview(FeedbackReport report){Text="Preview report";ClientSize=new Size(620,520);
             var text=new TextBox{Multiline=true,ReadOnly=true,ScrollBars=ScrollBars.Vertical,Dock=DockStyle.Fill,Text=report.Preview(),BackColor=DarkTheme.Input,ForeColor=DarkTheme.Text,BorderStyle=BorderStyle.None};
-            var close=ActionButton("OK",DialogResult.OK);close.Dock=DockStyle.Bottom;close.Height=42;Controls.Add(text);Controls.Add(close);AcceptButton=close;
+            var close=ActionButton("OK",DialogResult.OK);close.Dock=DockStyle.Bottom;close.Height=42;Controls.Add(new StyledScrollHost(text){Dock=DockStyle.Fill});Controls.Add(close);AcceptButton=close;
         }
     }
 }

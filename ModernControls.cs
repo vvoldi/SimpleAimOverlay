@@ -10,6 +10,8 @@ internal sealed class DarkSlider : Control
 {
     private int value;
     private bool dragging;
+    private double visualValue;
+    private readonly System.Windows.Forms.Timer animation = new() { Interval = 15 };
     [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)] public int Minimum { get; set; }
     [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)] public int Maximum { get; set; }
     [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
@@ -20,14 +22,19 @@ internal sealed class DarkSlider : Control
         {
             int next = Math.Clamp(value, Minimum, Maximum);
             if (this.value == next) return;
-            this.value = next; Invalidate(); ValueChanged?.Invoke(this, EventArgs.Empty);
+            this.value = next;
+            if (!IsHandleCreated || !UiMotion.Enabled) visualValue = next; else animation.Start();
+            Invalidate(); ValueChanged?.Invoke(this, EventArgs.Empty);
         }
     }
     public event EventHandler? ValueChanged;
+    internal double VisualValue => visualValue;
+    internal event EventHandler? VisualValueChanged;
 
     public DarkSlider(int min, int max)
     {
         Minimum = min; Maximum = max; value = min; Height = 34; BackColor = DarkTheme.Surface; TabStop = true;
+        visualValue=min; animation.Tick+=(_,_)=>{visualValue+=(Value-visualValue)*.45;if(Math.Abs(Value-visualValue)<.03){visualValue=Value;animation.Stop();}Invalidate();VisualValueChanged?.Invoke(this,EventArgs.Empty);};
         SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
     }
 
@@ -36,7 +43,7 @@ internal sealed class DarkSlider : Control
         base.OnPaint(e);
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         float left = 12, right = Math.Max(left + 1, Width - 12), y = Height / 2f;
-        float t = Maximum <= Minimum ? 0 : (Value - Minimum) / (float)(Maximum - Minimum);
+        float t = Maximum <= Minimum ? 0 : (float)((visualValue - Minimum) / (Maximum - Minimum));
         float x = left + (right - left) * t;
         using var track = new Pen(DarkTheme.Border, 4) { StartCap = LineCap.Round, EndCap = LineCap.Round };
         using var fill = new Pen(Enabled ? DarkTheme.Accent : DarkTheme.Muted, 4) { StartCap = LineCap.Round, EndCap = LineCap.Round };
@@ -62,6 +69,7 @@ internal sealed class DarkSlider : Control
         else if (e.KeyCode == Keys.End) { Value = Maximum; e.Handled = true; }
     }
     private void SetFromX(int x) { float t = Math.Clamp((x - 12f) / Math.Max(1f, Width - 24f), 0, 1); Value = Minimum + (int)Math.Round(t * (Maximum - Minimum)); }
+    protected override void Dispose(bool disposing){if(disposing)animation.Dispose();base.Dispose(disposing);}
 }
 
 internal sealed class DarkCheckBox : CheckBox
@@ -132,6 +140,8 @@ internal sealed class DarkTabHost : UserControl
     }
     private void SelectPage(int index)
     {
+        using var transition = UiMotion.Transition(Parent ?? content);
+        content.SuspendLayout();
         selected = index;
         for (int i = 0; i < pages.Count; i++)
         {
@@ -140,6 +150,7 @@ internal sealed class DarkTabHost : UserControl
             pages[i].Button.Image?.Dispose(); pages[i].Button.Image = GlyphPainter.Create(pages[i].Glyph, 18, active ? DarkTheme.Accent : DarkTheme.Muted);
         }
         SelectedPageChanged?.Invoke(this, EventArgs.Empty);
+        content.ResumeLayout(true);
     }
 }
 
@@ -280,7 +291,7 @@ internal sealed class DarkListBox : UserControl
         int ThumbHeight=>Math.Min(Height,Math.Max(28,Height*owner.VisibleRows/Math.Max(1,owner.Items.Count)));
         int Travel=>Math.Max(0,Height-ThumbHeight);
         int ThumbTop=>owner.MaxTop==0?0:Travel*owner.list.TopIndex/owner.MaxTop;
-        protected override void OnPaint(PaintEventArgs e){if(owner.MaxTop==0)return;using var b=new SolidBrush(dragging?DarkTheme.Accent:DarkTheme.Muted);e.Graphics.FillRectangle(b,4,ThumbTop,6,ThumbHeight);}
+        protected override void OnPaint(PaintEventArgs e){e.Graphics.Clear(ScrollPalette.Track);if(owner.MaxTop==0)return;using var b=new SolidBrush(ScrollPalette.Thumb);using var path=RoundedUi.Path(new Rectangle(4,ThumbTop,6,ThumbHeight),3);e.Graphics.SmoothingMode=SmoothingMode.AntiAlias;e.Graphics.FillPath(b,path);}
         void MoveTo(int y){owner.SetTop(Travel==0?0:(int)Math.Round((double)(y-offset)*owner.MaxTop/Travel));}
         protected override void OnMouseDown(MouseEventArgs e){base.OnMouseDown(e);if(e.Button!=MouseButtons.Left)return;offset=e.Y>=ThumbTop&&e.Y<ThumbTop+ThumbHeight?e.Y-ThumbTop:ThumbHeight/2;dragging=true;Capture=true;owner.list.Focus();MoveTo(e.Y);}
         protected override void OnMouseMove(MouseEventArgs e){base.OnMouseMove(e);if(dragging)MoveTo(e.Y);}

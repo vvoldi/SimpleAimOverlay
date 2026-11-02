@@ -10,6 +10,7 @@ internal static class FeatureChecks
     internal static void Run(){
         ObsChecks.Run();
         ReleaseNotesChecks.Run();
+        MotionChecks.Run();
         var draftAim = new AimSettings { Size = 20, Thickness = 2, Gap = 5, Color = "#00FF00" };
         var draft = new CrosshairDraft(draftAim);
         draftAim.Size = 70; draftAim.OffsetX = 10; draftAim.Hotkey = "F9"; draftAim.Visible = false;

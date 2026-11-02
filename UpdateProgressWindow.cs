@@ -17,6 +17,7 @@ internal sealed class UpdateProgressWindow : StyledDialog
     public UpdateProgressWindow()
     {
         Text="Updating Simple Aim Overlay";ClientSize=new Size(520,290);ShowInTaskbar=true;
+        bar.Animated=true;
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
         actions.RowStyles.Add(new RowStyle(SizeType.Absolute,0));
         actions.RowStyles.Add(new RowStyle(SizeType.Absolute,0));
@@ -48,6 +49,7 @@ internal sealed class UpdateProgressWindow : StyledDialog
     public void Report(AppUpdater.DownloadProgress progress)
     {
         if(IsDisposed||!cancel.Enabled||!downloading)return;
+        bar.Animated=false;
         int percent=(int)(progress.Received*100/Math.Max(1,progress.Total));
         headline.Text=$"Downloading update · {percent}%";bar.Percent=percent;
         double mb=1024d*1024;

@@ -7,6 +7,7 @@ internal class StyledDialog : Form
 {
     [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr h, int attr, ref int value, int size);
     public StyledDialog() {
+        DoubleBuffered=true; Opacity=0;
         using var iconStream = GetType().Assembly.GetManifestResourceStream("SimpleAimOverlay.Assets.simple-aim-overlay.ico") ?? GetType().Assembly.GetManifestResourceStream("app.ico"); if (iconStream != null) Icon = new Icon(iconStream);
         BackColor = DarkTheme.Window; ForeColor = DarkTheme.Text;
         AppFonts.Initialize(); Font = AppFonts.Regular(10); StartPosition = FormStartPosition.CenterParent;
@@ -23,6 +24,7 @@ internal class StyledDialog : Form
         Rectangle anchor=hasOwner?owner!.Bounds:work;
         Location=CenteredLocation(Size,anchor,work);
         base.OnShown(e);
+        UiMotion.FadeIn(this);
     }
     internal static Point CenteredLocation(Size size,Rectangle anchor,Rectangle work) => new(
         Math.Clamp(anchor.Left+(anchor.Width-size.Width)/2,work.Left,Math.Max(work.Left,work.Right-size.Width)),

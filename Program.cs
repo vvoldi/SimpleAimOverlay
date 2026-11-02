@@ -32,7 +32,8 @@ internal static class Program
             StartupDiagnostics.Write("Existing instance detected; exiting"); return;
         }
         StartupDiagnostics.Write("Opening application window");
-        Application.Run(new ControlWindow());
+        if(args.Contains("--startup") || args.Contains("--game")) Application.Run(new ControlWindow());
+        else Application.Run(new StartupContext());
     }
 }
 
@@ -105,7 +106,7 @@ internal sealed class ControlWindow : Form
     private StoreData data;
     private CrosshairDraft? crosshairDraft;
     private readonly Button applyChanges = new RoundedButton(), revertChanges = new RoundedButton();
-    private readonly Label draftStatus = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter };
+    private readonly Label draftStatus = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = DarkTheme.Muted };
     private readonly bool previewMode;
     private readonly OverlayWindow overlay = new();
     private readonly DarkTabHost tabs = new();
@@ -120,7 +121,10 @@ internal sealed class ControlWindow : Form
     private readonly DarkNumberBox offsetX = new(-2000, 2000), offsetY = new(-2000, 2000);
     private readonly Button colorButton = new RoundedButton(), outlineButton = new RoundedButton();
     private readonly Button toggleButton = new RoundedButton();
-    private readonly Panel preview = new();
+    private readonly AimPreview preview = new();
+    private readonly System.Windows.Forms.Timer saveDelay = new() { Interval = 250 };
+    private readonly System.Windows.Forms.Timer renderTick = new() { Interval = 16 };
+    private bool renderPending;
     private readonly Label status = new();
     private readonly NotifyIcon tray = new();
     private readonly AppUpdater updater = new();
@@ -155,6 +159,11 @@ internal sealed class ControlWindow : Form
     {
         this.startInTray = startInTray;
         previewMode=previewData!=null; data=previewData??Store.Load();
+        if(!previewMode && !startInTray){Opacity=0;Shown+=(_,_)=>UiMotion.FadeIn(this);}
+        DoubleBuffered=true;
+        Disposed+=(_,_)=>{saveDelay.Dispose();renderTick.Dispose();};
+        saveDelay.Tick+=(_,_)=>{saveDelay.Stop();SaveData();};
+        renderTick.Tick+=(_,_)=>{if(!renderPending){renderTick.Stop();return;}renderPending=false;RefreshRuntimeVisibility();preview.Invalidate();};
         if (!previewMode) openWindowSignal = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\SimpleAimOverlay.OpenWindow");
         UiText.Language = data.Language == "uk" ? "uk" : "en";
         Text = "Simple Aim Overlay"; Icon = BrandIcon.Load(); MinimumSize = new Size(900, 660); Size = new Size(1120, 780);
@@ -177,11 +186,12 @@ internal sealed class ControlWindow : Form
         FormClosing += (_, e) =>
         {
             RevertCrosshair();
+            saveDelay.Stop(); SaveData();
             if (!allowExit && e.CloseReason == CloseReason.UserClosing && data.MinimizeToTrayOnClose)
             {
                 e.Cancel = true; Hide(); return;
             }
-            obsServer?.Dispose(); updater.Dispose(); holdTimer.Stop(); holdTimer.Dispose(); openWindowSignal?.Dispose(); UnregisterHotKey(Handle, HotkeyId); tray.Visible = false; tray.Dispose(); overlay.Close();
+            saveDelay.Dispose(); renderTick.Dispose(); obsServer?.Dispose(); updater.Dispose(); holdTimer.Stop(); holdTimer.Dispose(); openWindowSignal?.Dispose(); UnregisterHotKey(Handle, HotkeyId); tray.Visible = false; tray.Dispose(); overlay.Close();
         };
         ApplyTheme();
     }
@@ -239,12 +249,12 @@ internal sealed class ControlWindow : Form
         root.Controls.Add(heading, 0, 0); root.SetColumnSpan(heading, 2);
         tabs.Dock = DockStyle.Fill;
         tabs.AddPage("Crosshair", "aim", MakeCrosshairTab()); tabs.AddPage("Editor", "edit", MakeLibraryTab()); tabs.AddPage("Settings", "settings", MakeSettingsTab());
-        tabs.AddPage("Feedback","feedback",new FeedbackPanel(()=>data));
+        tabs.AddPage("Feedback","feedback",new StyledScrollHost(new FeedbackPanel(()=>data)));
         root.Controls.Add(tabs, 0, 1);
         var right = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Padding = new Padding(18, 10, 0, 0), BackColor = DarkTheme.Window };
         right.RowStyles.Add(new RowStyle(SizeType.Absolute, 32)); right.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); right.RowStyles.Add(new RowStyle(SizeType.Absolute, 240));
         right.Controls.Add(new Label { Text = "LIVE PREVIEW", Font = AppFonts.Semibold(9), ForeColor = DarkTheme.Muted, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, BackColor = DarkTheme.Window }, 0, 0);
-        preview.Dock = DockStyle.Fill; preview.BackColor = DarkTheme.Preview; preview.Paint += (_, e) => AimRenderer.Draw(e.Graphics, preview.ClientRectangle, data.Current, aimColor, borderColor, true); right.Controls.Add(preview, 0, 1);
+        preview.Dock = DockStyle.Fill; preview.BackColor = DarkTheme.Preview; right.Controls.Add(preview, 0, 1);
         var bottom = new Panel { Dock = DockStyle.Fill, BackColor = DarkTheme.Window };
         var draftActions = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 144, ColumnCount = 1, RowCount = 3, Padding = new Padding(0, 8, 0, 8) };
         draftActions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -286,7 +296,7 @@ internal sealed class ControlWindow : Form
         monitor.DropDownStyle = ComboBoxStyle.DropDownList; AddRow(grid, "Display", monitor);
         var refresh = Button("Refresh displays", DarkTheme.SurfaceHover, DarkTheme.Text); refresh.Dock = DockStyle.Fill; refresh.Click += (_, _) => PopulateMonitors(); AddRow(grid, "", refresh);
         shape.SelectedIndexChanged += (_, _) => { imageScale.Enabled = shape.SelectedItem?.ToString() == "Image"; thickness.Enabled = gap.Enabled = !imageScale.Enabled; Apply(); }; outline.CheckedChanged += (_, _) => Apply(); offsetX.ValueChanged += (_, _) => Apply(); offsetY.ValueChanged += (_, _) => Apply(); monitor.SelectedIndexChanged += (_, _) => Apply();
-        return p;
+        return new StyledScrollHost(p);
     }
     private Panel MakeLibraryTab()
     {
@@ -393,6 +403,8 @@ internal sealed class ControlWindow : Form
     }
     private void ApplyTheme()
     {
+        using var transition = UiMotion.Transition(Controls.OfType<TableLayoutPanel>().FirstOrDefault() ?? (Control)this);
+        SuspendLayout();
         DarkTheme.Select(data.Theme=="light",this);
         RefreshColorSwatches();
         if(tray.ContextMenuStrip!=null){
@@ -400,9 +412,12 @@ internal sealed class ControlWindow : Form
             string[] glyphs=["aim","visibility","delete"];
             for(int i=0;i<tray.ContextMenuStrip.Items.Count;i++){var item=tray.ContextMenuStrip.Items[i];item.Image?.Dispose();item.Image=GlyphPainter.Create(glyphs[i],16,i==0?DarkTheme.Accent:DarkTheme.Text);}
         }
+        ResumeLayout(true);
     }
     private void ApplyLanguage()
     {
+        using var transition = UiMotion.Transition(Controls.OfType<TableLayoutPanel>().FirstOrDefault() ?? (Control)this);
+        SuspendLayout();
         UiText.Language=data.Language=="uk"?"uk":"en";
         UiText.Apply(this);
         RefreshHelpLanguage(this);
@@ -412,6 +427,7 @@ internal sealed class ControlWindow : Form
             for(int i=0;i<Math.Min(names.Length,menu.Items.Count);i++)menu.Items[i].Text=UiText.T(names[i]);
         }
         monitor.DropDownWidth=Math.Min(Screen.FromControl(this).WorkingArea.Width,Math.Max(monitor.Width,monitor.Items.Cast<MonitorItem>().Select(item=>TextRenderer.MeasureText(UiText.T(item.ToString()),monitor.Font).Width+48).DefaultIfEmpty(monitor.Width).Max()));
+        ResumeLayout(true);
     }
     private void SaveGameStartup()
     {
@@ -468,11 +484,12 @@ internal sealed class ControlWindow : Form
     }
     private void AddSliderRow(TableLayoutPanel g, string label, DarkSlider bar, Func<AimSettings, int> get, string key)
     {
-        var host = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 }; host.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); host.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 48));
-        var value = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, ForeColor = DarkTheme.Muted, BackColor = DarkTheme.Surface }; host.BackColor = DarkTheme.Surface; bar.BackColor = DarkTheme.Surface; host.Controls.Add(bar, 0, 0); host.Controls.Add(value, 1, 0);
-        string ValueText() => key is "opacity" or "scale" ? $"{bar.Value}%" : key is "thickness" or "outlineWidth" ? (bar.Value / 10f).ToString("0.0") : bar.Value.ToString();
+        var host = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 }; host.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); host.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 64));
+        var value = new ValueLabel { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, ForeColor = DarkTheme.Muted, BackColor = DarkTheme.Surface }; host.BackColor = DarkTheme.Surface; bar.BackColor = DarkTheme.Surface; host.Controls.Add(bar, 0, 0); host.Controls.Add(value, 1, 0);
+        string ValueText() {int display=(int)Math.Round(bar.VisualValue);return key is "opacity" or "scale" ? $"{display}%" : key is "thickness" or "outlineWidth" ? (display / 10f).ToString("0.0") : display.ToString();}
         value.Text=ValueText();
         value.Font = AppFonts.Semibold(9); bar.ValueChanged += (_, _) => { value.Text=ValueText(); if (!initializing) Apply(); };
+        bar.VisualValueChanged+=(_,_)=>value.Text=ValueText();
         AddRow(g, label, host); host.BackColor = DarkTheme.Surface; host.Margin = Padding.Empty; bar.Margin = Padding.Empty; value.Margin = Padding.Empty;
     }
     private static Button Button(string label, Color back, Color fore)
@@ -562,7 +579,8 @@ internal sealed class ControlWindow : Form
         images.Invalidate(); RefreshColorSwatches();
         if (monitor.SelectedItem is MonitorItem mi) s.Monitor = mi.Screen.DeviceName;
         s.Hotkey = hotkey.Binding;
-        RefreshRuntimeVisibility(); preview.Invalidate(); SaveData(); BindHotkey(); RefreshDraftActions();
+        renderPending=true; renderTick.Start(); preview.UpdateTarget(data.Current,aimColor,borderColor);
+        saveDelay.Stop(); saveDelay.Start(); BindHotkey(); RefreshDraftActions();
     }
     private Screen SelectedScreen() => monitor.SelectedItem is MonitorItem mi ? mi.Screen : Screen.PrimaryScreen ?? Screen.AllScreens[0];
     private void PickColor(bool isOutline)

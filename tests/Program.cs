@@ -8,6 +8,7 @@ static class Checks {
 const BindingFlags Private = BindingFlags.NonPublic | BindingFlags.Instance;
 static void Assert(bool condition,string message){if(!condition)throw new Exception(message);}
 [STAThread] static void Main(string[] args) {
+if(args.Length==1&&args[0]=="--motion-preview"){Application.EnableVisualStyles();Application.Run(new SimpleAimOverlay.ControlWindow(new SimpleAimOverlay.StoreData()){Text="Simple Aim Overlay — UI preview"});return;}
 if(args.Length==2&&args[0]=="--screenshots"){ScreenshotGallery.Render(args[1]);return;}
 var assembly=Assembly.Load("SimpleAimOverlay");
 var number=assembly.GetType("SimpleAimOverlay.DarkNumberBox")!;
@@ -43,7 +44,7 @@ Assert(concise.Contains("Version 0.2.13") && concise.Contains("Version 0.2.12") 
 using(var notesDialog = new SimpleAimOverlay.UpdateAvailableWindow(notesRelease with { Notes = string.Join("\n", Enumerable.Repeat("Long release note", 200)) })) {
     notesDialog.Show(); Application.DoEvents();
     var panel = (TableLayoutPanel)notesDialog.Controls[0];
-    var notesBox = (RichTextBox)panel.GetControlFromPosition(0,1)!;
+    var notesBox = (RichTextBox)((SimpleAimOverlay.StyledScrollHost)panel.GetControlFromPosition(0,1)!).Content;
     var actions = (TableLayoutPanel)panel.GetControlFromPosition(0,3)!;
     Assert(notesBox.ReadOnly && notesBox.ScrollBars == RichTextBoxScrollBars.Vertical, "Long notes are read-only and scrollable");
     Assert(notesBox.SelectionLength == 0 && !notesBox.Focused, "Opening update notes does not select all text");

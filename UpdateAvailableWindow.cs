@@ -29,7 +29,7 @@ internal sealed class UpdateAvailableWindow : StyledDialog
             position += line.Length + 1;
         }
         notes.Select(0, 0);
-        layout.Controls.Add(notes, 0, 1);
+        layout.Controls.Add(new StyledScrollHost(notes){Dock=DockStyle.Fill,Margin=new Padding(0,0,0,12)}, 0, 1);
         layout.Controls.Add(new Label { Text = "You will confirm installation after the download. Your settings will be kept.", Dock = DockStyle.Fill, Padding = new Padding(0, 10, 0, 0) }, 0, 2);
         var actions = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = Padding.Empty };
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));

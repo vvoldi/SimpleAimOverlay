@@ -12,7 +12,7 @@ internal sealed class SettingsSections : UserControl
         var nav = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1, RowCount = 0 };
         nav.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100)); sidebar.Controls.Add(nav);
         var content = new Panel { Dock = DockStyle.Fill, BackColor = DarkTheme.Surface };
-        layout.Controls.Add(sidebar,0,0); layout.Controls.Add(content,1,0); Controls.Add(layout);
+        layout.Controls.Add(new StyledScrollHost(sidebar){Dock=DockStyle.Fill},0,0); layout.Controls.Add(content,1,0); Controls.Add(layout);
         TableLayoutPanel? target = null;
         for (int row = 0; row < source.RowCount; row++) {
             var cells = source.Controls.Cast<Control>().Where(c => source.GetRow(c) == row).ToArray();
@@ -21,11 +21,11 @@ internal sealed class SettingsSections : UserControl
                 var page = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(20,12,16,12), Visible = false };
                 target = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 2, RowCount = 0 };
                 target.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,180)); target.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
-                page.Controls.Add(target); content.Controls.Add(page);
+                page.Controls.Add(target); var scrollPage=new StyledScrollHost(page){Dock=DockStyle.Fill,Visible=false};content.Controls.Add(scrollPage);
                 var button = new RoundedButton { Text = title.Text, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(10,0,0,0), Margin = new Padding(0,2,0,2), Cursor = Cursors.Hand, Font = AppFonts.Semibold(9) };
                 int index = sections.Count; button.Click += (_,_) => SelectSection(index);
                 nav.RowStyles.Add(new RowStyle(SizeType.Absolute,48)); nav.Controls.Add(button,0,nav.RowCount++);
-                sections.Add((button,page));
+                page.Visible=true; sections.Add((button,scrollPage));
             }
             if (target == null) continue;
             int targetRow = target.RowCount++;
@@ -40,6 +40,8 @@ internal sealed class SettingsSections : UserControl
     }
     internal void SelectSection(int index)
     {
+        using var transition = UiMotion.Transition(this);
+        SuspendLayout();
         SelectedIndex = index;
         for (int i = 0; i < sections.Count; i++) {
             bool active = i == index; var item = sections[i]; item.Page.Visible = active;
@@ -47,5 +49,6 @@ internal sealed class SettingsSections : UserControl
             item.Button.BackColor = active ? DarkTheme.SurfaceHover : DarkTheme.Window;
             item.Button.ForeColor = active ? DarkTheme.Accent : DarkTheme.Muted;
         }
+        ResumeLayout(true);
     }
 }

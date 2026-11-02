@@ -7,17 +7,19 @@ namespace SimpleAimOverlay;
 internal class RoundedButton : Button
 {
     private bool hovered;
-    public RoundedButton(){FlatStyle=FlatStyle.Flat;SetStyle(ControlStyles.UserPaint|ControlStyles.AllPaintingInWmPaint|ControlStyles.OptimizedDoubleBuffer,true);}
+    private float hoverAmount;
+    private readonly System.Windows.Forms.Timer hoverTimer=new(){Interval=15};
+    public RoundedButton(){FlatStyle=FlatStyle.Flat;SetStyle(ControlStyles.UserPaint|ControlStyles.AllPaintingInWmPaint|ControlStyles.OptimizedDoubleBuffer,true);hoverTimer.Tick+=(_,_)=>{float target=hovered?1:0;hoverAmount+=(target-hoverAmount)*.35f;if(Math.Abs(target-hoverAmount)<.02f){hoverAmount=target;hoverTimer.Stop();}Invalidate();};}
     public override Size GetPreferredSize(Size proposedSize) {
         var size=base.GetPreferredSize(proposedSize);
         int width=TextRenderer.MeasureText(UiText.T(Text),Font).Width+Padding.Horizontal+12+(Image==null?0:Image.Width+6);
         return new Size(Math.Max(size.Width,width),size.Height);
     }
-    protected override void OnMouseEnter(EventArgs e){base.OnMouseEnter(e);hovered=true;Invalidate();}
-    protected override void OnMouseLeave(EventArgs e){base.OnMouseLeave(e);hovered=false;Invalidate();}
+    protected override void OnMouseEnter(EventArgs e){base.OnMouseEnter(e);hovered=true;if(UiMotion.Enabled)hoverTimer.Start();else hoverAmount=1;Invalidate();}
+    protected override void OnMouseLeave(EventArgs e){base.OnMouseLeave(e);hovered=false;if(UiMotion.Enabled)hoverTimer.Start();else hoverAmount=0;Invalidate();}
     protected override void OnPaint(PaintEventArgs e){
         e.Graphics.Clear(Parent?.BackColor??BackColor);e.Graphics.SmoothingMode=SmoothingMode.AntiAlias;
-        Color fillColor=hovered?ControlPaint.Light(BackColor,.12f):BackColor;
+        Color fillColor=hoverAmount>0?ControlPaint.Light(BackColor,.12f*hoverAmount):BackColor;
         using var brush=new SolidBrush(fillColor);using var path=RoundedUi.Path(new Rectangle(0,0,Width-1,Height-1),8);e.Graphics.FillPath(brush,path);
         if(Focused&&FindForm()?.ContainsFocus==true){using var pen=new Pen(Color.FromArgb(69,220,153));e.Graphics.DrawPath(pen,path);}
         int imageWidth=Image?.Width??0;
@@ -28,6 +30,7 @@ internal class RoundedButton : Button
         if(Image!=null){e.Graphics.DrawImage(Image,x,(Height-Image.Height)/2);x+=imageWidth+6;}
         TextRenderer.DrawText(e.Graphics,caption,Font,new Rectangle(x,0,Math.Max(0,Width-x-6),Height),Enabled?ForeColor:Color.Gray,TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis);
     }
+    protected override void Dispose(bool disposing){if(disposing)hoverTimer.Dispose();base.Dispose(disposing);}
 }
 
 internal static class RoundedUi

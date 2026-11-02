@@ -5,7 +5,7 @@ using System.Windows.Forms;
 
 namespace SimpleAimOverlay;
 
-internal sealed class PixelCrosshairEditor : Form
+internal sealed class PixelCrosshairEditor : StyledDialog
 {
     private readonly DrawingCanvas canvas;
     private readonly Stack<Bitmap> undo = new(), redo = new();
@@ -18,7 +18,7 @@ internal sealed class PixelCrosshairEditor : Form
     private readonly DarkCheckBox eraser = new() { Text = "Eraser", AutoSize = false, Width = 100, Height = 36, ForeColor = DarkTheme.Text, BackColor = DarkTheme.Surface, Padding = new Padding(8, 9, 8, 0) };
     private readonly DarkCheckBox tintToAim = new() { Text = "Use crosshair color", AutoSize = false, Width = 180, Height = 36, Checked = true, ForeColor = DarkTheme.Text, BackColor = DarkTheme.Surface, Padding = new Padding(6, 9, 6, 0) };
     private readonly bool resizableCanvas;
-    private readonly Panel livePreview = new() { BackColor = DarkTheme.Preview, Dock = DockStyle.Fill };
+    private readonly Panel livePreview = new BufferedPanel() { BackColor = DarkTheme.Preview, Dock = DockStyle.Fill };
     private readonly DarkComboBox dimensions = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 120 };
     private Color initialColor;
     private bool syncingDimensions;
@@ -31,6 +31,7 @@ internal sealed class PixelCrosshairEditor : Form
 
     public PixelCrosshairEditor(string? imagePath, Color color)
     {
+        Padding=Padding.Empty;
         Text = imagePath == null ? "New crosshair" : "Crosshair editor"; Icon = BrandIcon.Load();
         StartPosition = FormStartPosition.CenterParent; MinimumSize = new Size(880, 640); Size = new Size(1180, 820);
         FormBorderStyle = FormBorderStyle.Sizable; BackColor = DarkTheme.Window; ForeColor = DarkTheme.Text; Font = AppFonts.Regular(9.5f);

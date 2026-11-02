@@ -9,6 +9,7 @@ internal static class UiText
     private sealed class Caption { public string English=""; public bool Updating; }
     private static readonly ConditionalWeakTable<Control,Caption> captions=new();
     private static readonly Dictionary<string,string> Ukrainian=new(StringComparer.Ordinal) {
+        ["Starting…"]="Запуск…",
         ["Apply changes"]="Застосувати зміни", ["Revert changes"]="Скасувати зміни",
         ["Unsaved crosshair changes"]="Незбережені зміни прицілу", ["Crosshair changes saved"]="Зміни прицілу збережено",
         ["Crosshair appearance"]="Вигляд прицілу", ["Shape and dimensions"]="Форма та розміри", ["Outline styling"]="Оформлення обведення",

@@ -11,6 +11,7 @@ internal static class ScreenshotGallery
         Application.EnableVisualStyles();AppFonts.Initialize();Directory.CreateDirectory(folder);
         const BindingFlags flags=BindingFlags.NonPublic|BindingFlags.Instance;
         void Save(Form form,string name) {
+            var settle=System.Diagnostics.Stopwatch.StartNew();while(settle.ElapsedMilliseconds<240){Application.DoEvents();Thread.Sleep(10);}
             Application.DoEvents();form.PerformLayout();
             using var full=new Bitmap(form.Width,form.Height);form.DrawToBitmap(full,new Rectangle(Point.Empty,form.Size));
             Point client=form.PointToScreen(Point.Empty)-new Size(form.Left,form.Top);

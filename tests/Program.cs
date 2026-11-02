@@ -33,6 +33,20 @@ string json="""
 {"draft":false,"prerelease":false,"tag_name":"v0.1.9-self-signed","assets":[{"name":"SimpleAimOverlay-0.1.9-Setup.exe","browser_download_url":"https://github.com/vvoldi/SimpleAimOverlay/releases/download/v0.1.9-self-signed/SimpleAimOverlay-0.1.9-Setup.exe","digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","size":123}]}
 """;
 Assert(parseRelease.Invoke(null,[json])!=null,"Installer metadata");
+var notesRelease = SimpleAimOverlay.AppUpdater.ParseRelease(json.Replace("\"assets\":", "\"body\":\"## What's new\\n- New feature\",\"assets\":"))!;
+Assert(notesRelease.Notes == "## What's new\n- New feature", "Release notes are read from GitHub metadata");
+Assert(SimpleAimOverlay.AppUpdater.ParseRelease(json)!.Notes == "", "Older metadata without notes remains supported");
+Assert(SimpleAimOverlay.UpdateAvailableWindow.DisplayNotes("one\ntwo") == "one" + Environment.NewLine + "two", "Notes preserve line breaks");
+Assert(!string.IsNullOrWhiteSpace(SimpleAimOverlay.UpdateAvailableWindow.DisplayNotes("  ")), "Empty release notes have a fallback");
+using(var notesDialog = new SimpleAimOverlay.UpdateAvailableWindow(notesRelease with { Notes = string.Join("\n", Enumerable.Repeat("Long release note", 200)) })) {
+    notesDialog.Show(); Application.DoEvents();
+    var panel = (TableLayoutPanel)notesDialog.Controls[0];
+    var notesBox = (TextBox)panel.GetControlFromPosition(0,1)!;
+    var actions = (TableLayoutPanel)panel.GetControlFromPosition(0,3)!;
+    Assert(notesBox.ReadOnly && notesBox.ScrollBars == ScrollBars.Vertical, "Long notes are read-only and scrollable");
+    Assert(notesBox.Bottom <= actions.Top && actions.Bottom <= panel.Height, "Long notes cannot cover update actions");
+    notesDialog.Close();
+}
 Assert(parseRelease.Invoke(null,[json.Replace("\"prerelease\":false","\"prerelease\":true")])==null,"Skip prereleases");
 try{parseRelease.Invoke(null,[json.Replace("https://github.com/","https://example.com/")]);throw new Exception("Untrusted URL accepted");}catch(TargetInvocationException e)when(e.InnerException is InvalidDataException){}
 var handler=new Handler(json);

@@ -15,7 +15,7 @@ internal sealed class AppUpdater : IDisposable
     private bool startupChecked, busy;
     internal static Version CurrentVersion => typeof(AppUpdater).Assembly.GetName().Version ?? new Version(0,0,0);
     internal static Version? ParseVersion(string tag) => Version.TryParse(tag.TrimStart('v').Split('-')[0], out var v) ? new Version(v.Major,v.Minor,Math.Max(0,v.Build),Math.Max(0,v.Revision)) : null;
-    internal sealed record Release(Version Version, string Url, string Digest, long Size);
+    internal sealed record Release(Version Version, string Url, string Digest, long Size, string Notes = "");
     internal static Release? ParseRelease(string json)
     {
         using var doc = JsonDocument.Parse(json); var root = doc.RootElement;
@@ -30,7 +30,8 @@ internal sealed class AppUpdater : IDisposable
             long size = asset.GetProperty("size").GetInt64();
             if (!url.StartsWith(ReleasePrefix,StringComparison.Ordinal) || !digest.StartsWith("sha256:",StringComparison.Ordinal) || digest.Length != 71 || size <= 0 || size > 600_000_000)
                 throw new InvalidDataException("The release package metadata is invalid. Please use the GitHub release page.");
-            return new Release(version,url,digest[7..],size);
+            string notes = root.TryGetProperty("body", out var body) && body.ValueKind == JsonValueKind.String ? body.GetString() ?? "" : "";
+            return new Release(version,url,digest[7..],size,notes);
         }
         return null;
     }
@@ -51,7 +52,8 @@ internal sealed class AppUpdater : IDisposable
             if (release == null) { status("No compatible update package is available."); return; }
             if (release.Version <= CurrentVersion) { status("You're up to date · " + CurrentVersion.ToString(3)); return; }
             status("Update available · " + release.Version.ToString(3));
-            if (owner.IsDisposed || DarkMessage.Show(owner,$"Version {release.Version.ToString(3)} is available. Download it now?\n\nYou will confirm installation after the download. Your settings will be kept.","Update available",MessageBoxButtons.YesNo) != DialogResult.Yes) return;
+            using (var available = new UpdateAvailableWindow(release))
+                if (owner.IsDisposed || available.ShowDialog(owner) != DialogResult.OK) return;
             string directory = Path.Combine(Path.GetTempPath(),"SimpleAimOverlay-update-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(directory);
             file = Path.Combine(directory,"Setup.exe");
             using var downloadTimeout = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);

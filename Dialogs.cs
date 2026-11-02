@@ -75,7 +75,7 @@ internal sealed class DarkColorPicker : StyledDialog
     public bool FullOpen { get; set; }
     private double hue, saturation, brightness;
     private bool updating;
-    private readonly NumericUpDown[] channels = new NumericUpDown[7];
+    private readonly DarkNumberBox[] channels = new DarkNumberBox[7];
     private readonly TextBox hex = new();
     private readonly Panel current = new(){Tag="PreserveColor"};
     private ColorSurface field = null!, strip = null!;
@@ -95,7 +95,7 @@ internal sealed class DarkColorPicker : StyledDialog
         for(int i=0;i<channels.Length;i++) {
             int index=i,x=24+(i%4)*116,y=318+(i/4)*38;
             Controls.Add(new Label{Text=labels[i],Bounds=new Rectangle(x,y+4,32,24)});
-            var input=new NumericUpDown{Bounds=new Rectangle(x+33,y,72,28),Minimum=0,Maximum=i==4?359:i>4?100:255,BackColor=BackColor,ForeColor=ForeColor,BorderStyle=BorderStyle.FixedSingle};
+            var input=new DarkNumberBox(0,i==4?359:i>4?100:255){Bounds=new Rectangle(x+33,y,80,30)};
             channels[i]=input;Controls.Add(input);
             input.ValueChanged+=(_,_)=>{
                 if(updating)return;

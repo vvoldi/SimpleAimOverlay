@@ -36,6 +36,34 @@ internal sealed class AppUpdater : IDisposable
         return null;
     }
     public AppUpdater() : this(new HttpClientHandler()) { }
+    internal async Task<string> CollectNotesAsync(Release latest, Version installed, CancellationToken token)
+    {
+        var notes = new Dictionary<Version, string> { [latest.Version] = latest.Notes };
+        try {
+            // Release publication order is not necessarily version order; inspect every page.
+            for (int page = 1; ; page++) {
+                string json = await client.GetStringAsync($"https://api.github.com/repos/vvoldi/SimpleAimOverlay/releases?per_page=100&page={page}", token);
+                using var document = JsonDocument.Parse(json);
+                var items = document.RootElement;
+                foreach (var item in items.EnumerateArray()) {
+                    if (item.GetProperty("draft").GetBoolean() || item.GetProperty("prerelease").GetBoolean()) continue;
+                    var version = ParseVersion(item.GetProperty("tag_name").GetString() ?? "");
+                    if (version == null || version <= installed || version > latest.Version || notes.ContainsKey(version)) continue;
+                    notes[version] = item.TryGetProperty("body", out var body) && body.ValueKind == JsonValueKind.String ? body.GetString() ?? "" : "";
+                }
+                if (items.GetArrayLength() < 100) break;
+            }
+            return FormatNotes(notes);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or OperationCanceledException) {
+            lifetime.Token.ThrowIfCancellationRequested();
+            // Missing history should not prevent installing the verified latest package.
+            return UiText.T("Some release notes could not be loaded. The list below may be incomplete.") + Environment.NewLine + Environment.NewLine + FormatNotes(notes);
+        }
+    }
+    private static string FormatNotes(Dictionary<Version, string> notes) => string.Join(
+        Environment.NewLine + Environment.NewLine,
+        notes.OrderByDescending(entry => entry.Key).Select(entry => "Version " + entry.Key.ToString(3) + Environment.NewLine + UpdateAvailableWindow.DisplayNotes(entry.Value)));
     internal AppUpdater(HttpMessageHandler handler) { client = new HttpClient(handler) { Timeout = TimeSpan.FromMinutes(10) }; client.DefaultRequestHeaders.UserAgent.ParseAdd("SimpleAimOverlay/" + CurrentVersion.ToString(3)); client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json"); }
     public async Task CheckAsync(Form owner, bool manual, Action<string> status, Action installed)
     {
@@ -51,6 +79,8 @@ internal sealed class AppUpdater : IDisposable
             if (owner.IsDisposed) return;
             if (release == null) { status("No compatible update package is available."); return; }
             if (release.Version <= CurrentVersion) { status("You're up to date · " + CurrentVersion.ToString(3)); return; }
+            release = release with { Notes = await CollectNotesAsync(release, CurrentVersion, checkTimeout.Token) };
+            if (owner.IsDisposed) return;
             status("Update available · " + release.Version.ToString(3));
             using (var available = new UpdateAvailableWindow(release))
                 if (owner.IsDisposed || available.ShowDialog(owner) != DialogResult.OK) return;

@@ -9,6 +9,19 @@ internal static class FeatureChecks
     static void Assert(bool value,string reason){if(!value)throw new Exception(reason);}
     internal static void Run(){
         ObsChecks.Run();
+        ReleaseNotesChecks.Run();
+        using (var picker = new DarkColorPicker { Color = Color.FromArgb(128, 92, 255, 0) }) {
+            picker.Show(); Application.DoEvents();
+            var inputs = picker.Controls.OfType<DarkNumberBox>().ToArray();
+            Assert(inputs.Length == 7, "Color channels use the same custom number inputs as center offset");
+            inputs[0].Value = 120;
+            Assert(picker.Color.R == 120 && picker.Color.A == 128, "Custom RGB editing preserves alpha");
+            inputs[3].Value = 255;
+            Assert(picker.Color.A == 255, "Custom alpha editing applies");
+            inputs[4].Value = 180;
+            Assert(Math.Abs(picker.Color.GetHue() - 180) < 2, "Custom HSV editing applies");
+            picker.Close();
+        }
         var holdSettings = new AimSettings { OverrideHideWhileHeld = true, OverrideHoldKey = "Mouse X1" };
         foreach (var sequence in new[] {
             new[] { (true,false,true), (true,true,false), (true,false,true), (false,false,false) },

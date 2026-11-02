@@ -10,6 +10,7 @@ internal static class UiText
     private static readonly ConditionalWeakTable<Control,Caption> captions=new();
     private static readonly Dictionary<string,string> Ukrainian=new(StringComparer.Ordinal) {
         ["What's new"]="Що нового", ["Download update"]="Завантажити оновлення",
+        ["Some release notes could not be loaded. The list below may be incomplete."]="Не вдалося завантажити частину описів змін. Список нижче може бути неповним.",
         ["No release notes were provided."]="Опис змін для цієї версії відсутній.",
         ["You will confirm installation after the download. Your settings will be kept."]="Після завантаження ти підтвердиш встановлення. Налаштування буде збережено.",
         ["Share crosshair with OBS"]="Передавати приціл в OBS",

@@ -116,6 +116,8 @@ internal sealed class DarkTabHost : UserControl
     private readonly Panel content = new() { Dock = DockStyle.Fill, BackColor = DarkTheme.Surface };
     private readonly List<(Button Button, Control Page, string Glyph)> pages = [];
     private int selected = -1;
+    internal int SelectedIndex => selected;
+    internal event EventHandler? SelectedPageChanged;
 
     public DarkTabHost()
     {
@@ -137,6 +139,7 @@ internal sealed class DarkTabHost : UserControl
             pages[i].Button.BackColor = active ? DarkTheme.Surface : DarkTheme.Window; pages[i].Button.ForeColor = active ? DarkTheme.Text : DarkTheme.Muted;
             pages[i].Button.Image?.Dispose(); pages[i].Button.Image = GlyphPainter.Create(pages[i].Glyph, 18, active ? DarkTheme.Accent : DarkTheme.Muted);
         }
+        SelectedPageChanged?.Invoke(this, EventArgs.Empty);
     }
 }
 

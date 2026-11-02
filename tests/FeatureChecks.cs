@@ -20,6 +20,17 @@ internal static class FeatureChecks
         Assert(draftAim.Thickness == 1.5f && !draft.HasChanges(draftAim), "Apply becomes the next revert baseline");
         using (var draftWindow = new ControlWindow(new StoreData())) {
             draftWindow.Show(); Application.DoEvents();
+            var tabHost = (DarkTabHost)typeof(ControlWindow).GetField("tabs", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(draftWindow)!;
+            var rootGrid = (TableLayoutPanel)tabHost.Parent!;
+            var chooseTab = typeof(DarkTabHost).GetMethod("SelectPage", BindingFlags.NonPublic | BindingFlags.Instance)!;
+            foreach (int index in new[] { 2, 3, 0, 1 }) {
+                chooseTab.Invoke(tabHost, new object[] { index }); Application.DoEvents();
+                Assert(rootGrid.GetColumnSpan(tabHost) == (index >= 2 ? 2 : 1), "Only Settings and Feedback use full width without preview");
+                Assert(rootGrid.GetControlFromPosition(1,1)!.Visible, "Active tab content remains visible");
+            }
+            chooseTab.Invoke(tabHost, new object[] { 0 }); Application.DoEvents();
+            var offset = (DarkNumberBox)typeof(ControlWindow).GetField("offsetX", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(draftWindow)!;
+            Assert(offset.Parent!.Height <= 50 * draftWindow.DeviceDpi / 96d, "Center offset has a compact single-line layout");
             var model = (StoreData)typeof(ControlWindow).GetField("data", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(draftWindow)!;
             int originalSize = model.Current.Size;
             var slider = (DarkSlider)typeof(ControlWindow).GetField("size", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(draftWindow)!;

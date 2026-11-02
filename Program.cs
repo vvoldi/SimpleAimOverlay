@@ -258,6 +258,12 @@ internal sealed class ControlWindow : Form
         bottom.Controls.Add(draftActions);
         toggleButton.Text = "Crosshair: ON"; toggleButton.Image = GlyphPainter.Create("visibility", 18, DarkTheme.Window); toggleButton.ImageAlign = ContentAlignment.MiddleLeft; toggleButton.TextImageRelation = TextImageRelation.ImageBeforeText; toggleButton.BackColor = DarkTheme.Accent; toggleButton.ForeColor = DarkTheme.Window; toggleButton.Font = AppFonts.Semibold(10); toggleButton.FlatStyle = FlatStyle.Flat; toggleButton.FlatAppearance.BorderSize = 0; toggleButton.Dock = DockStyle.Top; toggleButton.Height = 44; toggleButton.Click += (_, _) => ToggleVisible(); bottom.Controls.Add(toggleButton);
         status.Text = "F8 toggles · Right Mouse temporarily hides"; status.Dock = DockStyle.Bottom; status.Height = 42; status.ForeColor = DarkTheme.Muted; status.TextAlign = ContentAlignment.MiddleCenter; status.BackColor = DarkTheme.Window; bottom.Controls.Add(status); right.Controls.Add(bottom, 0, 2); root.Controls.Add(right, 1, 1);
+        tabs.SelectedPageChanged += (_, _) => {
+            root.SuspendLayout();
+            bool showPreview = tabs.SelectedIndex < 2;
+            right.Visible = showPreview; root.SetColumnSpan(tabs, showPreview ? 1 : 2);
+            root.ResumeLayout(true);
+        };
     }
     private Panel Page(string name) { var p = new Panel { BackColor = DarkTheme.Surface, Padding = new Padding(18), AutoScroll = true }; return p; }
     private Panel MakeCrosshairTab()
@@ -360,6 +366,8 @@ internal sealed class ControlWindow : Form
         overrideHoldKey.BindingChanged += (_, _) => { if (!initializing) Apply(); };
         startup.CheckedChanged += (_, _) => SetStartup();
         closeToTray.CheckedChanged += (_, _) => { if (initializing) return; data.MinimizeToTrayOnClose = closeToTray.Checked; SaveData(); };
+        p.Controls.Remove(grid); p.AutoScroll = false; p.Padding = Padding.Empty;
+        p.Controls.Add(new SettingsSections(grid) { Dock = DockStyle.Fill });
         return p;
     }
 
@@ -431,13 +439,13 @@ internal sealed class ControlWindow : Form
         if (section != null) {
             int headingRow = grid.RowCount++;
             grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
-            var heading = new Label { Text = section, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft,
+            var heading = new Label { Text = section, Tag = "SettingsSection", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft,
                 Font = AppFonts.Semibold(10), ForeColor = DarkTheme.Text, BackColor = DarkTheme.SurfaceHover,
                 Padding = new Padding(12, 0, 0, 0), Margin = new Padding(0, headingRow == 0 ? 0 : 10, 0, 5) };
             grid.Controls.Add(heading, 0, headingRow); grid.SetColumnSpan(heading, 2);
         }
         // Nested button margins count towards the row height, including wrapped rows.
-        bool flowing = control is FlowLayoutPanel;
+        bool flowing = control is FlowLayoutPanel && label != "Center offset";
         int row = grid.RowCount++; grid.RowStyles.Add(flowing ? new RowStyle(SizeType.AutoSize) : new RowStyle(SizeType.Absolute, 45));
         var l = new Label { Text = label, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = DarkTheme.Muted, BackColor = DarkTheme.Surface };
         // Layout containers share the page background; only inputs need a dark fill.
@@ -453,7 +461,8 @@ internal sealed class ControlWindow : Form
         }
         control.Dock = DockStyle.Fill; grid.Controls.Add(labelCell, 0, row); grid.Controls.Add(control, 1, row);
         if (control is FlowLayoutPanel flow) {
-            flow.AutoSize = true; flow.AutoSizeMode = AutoSizeMode.GrowAndShrink; flow.Dock = DockStyle.Top;
+            flow.AutoSize = flowing; flow.AutoSizeMode = AutoSizeMode.GrowAndShrink; flow.Dock = DockStyle.Top;
+            if (!flowing) { flow.WrapContents = false; flow.Height = 39; }
             flow.MinimumSize = new Size(0, 39);
         }
     }

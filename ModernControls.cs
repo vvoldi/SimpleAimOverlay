@@ -11,6 +11,8 @@ internal sealed class DarkSlider : Control
     private int value;
     private bool dragging;
     private double visualValue;
+    private double animationFrom;
+    private readonly System.Diagnostics.Stopwatch animationClock = new();
     private readonly System.Windows.Forms.Timer animation = new() { Interval = 15 };
     [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)] public int Minimum { get; set; }
     [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)] public int Maximum { get; set; }
@@ -23,7 +25,7 @@ internal sealed class DarkSlider : Control
             int next = Math.Clamp(value, Minimum, Maximum);
             if (this.value == next) return;
             this.value = next;
-            if (!IsHandleCreated || !UiMotion.Enabled) visualValue = next; else animation.Start();
+            if (!IsHandleCreated || !UiMotion.Enabled) { animation.Stop(); visualValue = next; } else { animationFrom = visualValue; animationClock.Restart(); animation.Start(); }
             Invalidate(); ValueChanged?.Invoke(this, EventArgs.Empty);
         }
     }
@@ -34,7 +36,7 @@ internal sealed class DarkSlider : Control
     public DarkSlider(int min, int max)
     {
         Minimum = min; Maximum = max; value = min; Height = 34; BackColor = DarkTheme.Surface; TabStop = true;
-        visualValue=min; animation.Tick+=(_,_)=>{visualValue+=(Value-visualValue)*.45;if(Math.Abs(Value-visualValue)<.03){visualValue=Value;animation.Stop();}Invalidate();VisualValueChanged?.Invoke(this,EventArgs.Empty);};
+        visualValue=min; animation.Tick+=(_,_)=>{double t=Math.Clamp(animationClock.Elapsed.TotalMilliseconds/140,0,1);visualValue=animationFrom+(Value-animationFrom)*(1-Math.Pow(1-t,3));if(t>=1){visualValue=Value;animation.Stop();}Invalidate();VisualValueChanged?.Invoke(this,EventArgs.Empty);};
         SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
     }
 

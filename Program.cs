@@ -64,6 +64,8 @@ internal sealed class AimSettings
     public string Hotkey { get; set; } = "F8";
     public bool HideWhileHeld { get; set; } = true;
     public string HoldKey { get; set; } = "Right Mouse";
+    public bool OverrideHideWhileHeld { get; set; }
+    public string OverrideHoldKey { get; set; } = "";
     public bool StartWithWindows { get; set; }
 }
 
@@ -105,7 +107,8 @@ internal sealed class ControlWindow : Form
     private readonly OverlayWindow overlay = new();
     private readonly DarkTabHost tabs = new();
     private readonly DarkComboBox shape = new(), monitor = new(), language = new(), theme = new();
-    private readonly KeyBindingButton hotkey = new(), holdKey = new();
+    private readonly KeyBindingButton hotkey = new(), holdKey = new(), overrideHoldKey = new();
+    private readonly DarkCheckBox overrideHideWhileHeld = new();
     private bool toggleWasDown;
     private readonly DarkSlider outlineWidth = Slider(5, 100), outlineOpacity = Slider(0, 100);
     private readonly DarkListBox images = new();
@@ -299,6 +302,9 @@ internal sealed class ControlWindow : Form
         AddRow(grid, "Toggle hotkey", hotkey);
         hideWhileHeld.Text = "Hide while key is held"; hideWhileHeld.AutoSize = true; AddRow(grid, "Hold to hide", hideWhileHeld);
         AddRow(grid, "Hold key", holdKey);
+        overrideHideWhileHeld.Text = "Show while override key is held"; overrideHideWhileHeld.AutoSize = true;
+        AddRow(grid, "Override hold-to-hide", overrideHideWhileHeld);
+        AddRow(grid, "Override key", overrideHoldKey);
         startup.Text = "Launch when Windows starts"; startup.AutoSize = true; AddRow(grid, "Startup", startup);
         var desktopShortcut = Button("Create desktop shortcut", DarkTheme.SurfaceHover, DarkTheme.Text);
         desktopShortcut.Click += (_, _) => {
@@ -335,6 +341,8 @@ internal sealed class ControlWindow : Form
         hotkey.BindingChanged += (_, _) => Apply();
         hideWhileHeld.CheckedChanged += (_, _) => { if (!initializing) Apply(); };
         holdKey.BindingChanged += (_, _) => { if (!initializing) Apply(); };
+        overrideHideWhileHeld.CheckedChanged += (_, _) => { if (!initializing) Apply(); };
+        overrideHoldKey.BindingChanged += (_, _) => { if (!initializing) Apply(); };
         startup.CheckedChanged += (_, _) => SetStartup();
         closeToTray.CheckedChanged += (_, _) => { if (initializing) return; data.MinimizeToTrayOnClose = closeToTray.Checked; SaveData(); };
         return p;
@@ -419,6 +427,7 @@ internal sealed class ControlWindow : Form
         desiredVisible = s.Visible;
         hotkey.Binding = s.Hotkey;
         hideWhileHeld.Checked = s.HideWhileHeld; holdKey.Binding = NormalizeHoldKey(s.HoldKey);
+        overrideHideWhileHeld.Checked = s.OverrideHideWhileHeld; overrideHoldKey.Binding = s.OverrideHoldKey;
         outlineWidth.Value = Math.Clamp((int)(s.OutlineWidth * 10),5,100); outlineOpacity.Value = Math.Clamp(s.OutlineOpacity,0,100);
         startup.Checked = s.StartWithWindows;
         closeToTray.Checked = data.MinimizeToTrayOnClose; minimizeToTray.Checked = data.MinimizeToTray; launchWithGame.Checked = data.LaunchWithGame; gameExecutable.Text = data.GameExecutable;
@@ -475,6 +484,7 @@ internal sealed class ControlWindow : Form
         s.Outline = outline.Checked; s.Size = size.Value; s.ImageScale = imageScale.Value; s.Thickness = thickness.Value / 10f; s.Gap = gap.Value; s.Opacity = opacity.Value;
         s.OffsetX = (int)offsetX.Value; s.OffsetY = (int)offsetY.Value; desiredVisible = visible.Checked; s.Visible = desiredVisible;
         s.HideWhileHeld = hideWhileHeld.Checked; s.HoldKey = holdKey.Binding;
+        s.OverrideHideWhileHeld = overrideHideWhileHeld.Checked; s.OverrideHoldKey = overrideHoldKey.Binding;
         s.OutlineWidth = outlineWidth.Value / 10f; s.OutlineOpacity = outlineOpacity.Value;
         toggleButton.Text = s.Visible ? "Crosshair: ON" : "Crosshair: OFF";
         toggleButton.BackColor = s.Visible ? DarkTheme.Accent : DarkTheme.SurfaceHover;
@@ -507,7 +517,8 @@ internal sealed class ControlWindow : Form
     private void RefreshRuntimeVisibility()
     {
         var runtimeSettings = Copy(data.Current);
-        bool hiddenByHold = runtimeSettings.HideWhileHeld && holdDown;
+        holdDown = HoldVisibility.IsHidden(runtimeSettings, KeyBindingButton.IsDown(runtimeSettings.HoldKey), KeyBindingButton.IsDown(runtimeSettings.OverrideHoldKey));
+        bool hiddenByHold = holdDown;
         gameForeground = !data.LaunchWithGame || GameLauncher.IsForegroundTarget(data.GameExecutable);
         runtimeSettings.Visible = GameLauncher.ShouldShow(runtimeSettings.Visible, hiddenByHold, data.LaunchWithGame, gameForeground);
         if (runtimeStarted)
@@ -559,7 +570,7 @@ internal sealed class ControlWindow : Form
         if (trayInteracting || tray.ContextMenuStrip?.Visible == true || OwnedForms.Any(f=>f.Visible) || (ContainsFocus && GetFocusedControl(this) is TextBoxBase)) { toggleWasDown=toggleDown; return; }
         if(toggleDown&&!toggleWasDown)ToggleVisible();
         toggleWasDown=toggleDown;
-        bool pressed = hideWhileHeld.Checked && desiredVisible && KeyBindingButton.IsDown(holdKey.Binding);
+        bool pressed = HoldVisibility.IsHidden(data.Current, KeyBindingButton.IsDown(data.Current.HoldKey), KeyBindingButton.IsDown(data.Current.OverrideHoldKey));
         if (pressed == holdDown) return;
         holdDown = pressed;
         RefreshRuntimeVisibility();

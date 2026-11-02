@@ -9,6 +9,21 @@ internal static class FeatureChecks
     static void Assert(bool value,string reason){if(!value)throw new Exception(reason);}
     internal static void Run(){
         ObsChecks.Run();
+        var holdSettings = new AimSettings { OverrideHideWhileHeld = true, OverrideHoldKey = "Mouse X1" };
+        foreach (var sequence in new[] {
+            new[] { (true,false,true), (true,true,false), (true,false,true), (false,false,false) },
+            new[] { (false,true,false), (true,true,false), (false,true,false), (false,false,false) }
+        }) foreach (var (hideHeld, overrideHeld, hidden) in sequence)
+            Assert(HoldVisibility.IsHidden(holdSettings, hideHeld, overrideHeld) == hidden, "Override works in either press order and restores hiding on release");
+        Assert(!GameLauncher.ShouldShow(false, HoldVisibility.IsHidden(holdSettings,true,true),false,true), "Override respects master off");
+        Assert(!GameLauncher.ShouldShow(true, HoldVisibility.IsHidden(holdSettings,true,true),true,false), "Override respects selected-game filter");
+        holdSettings.OverrideHideWhileHeld = false;
+        Assert(HoldVisibility.IsHidden(holdSettings,true,true), "Disabled override preserves hold-to-hide");
+        holdSettings.HideWhileHeld = false;
+        Assert(!HoldVisibility.IsHidden(holdSettings,true,false), "Disabled hold-to-hide stays visible");
+        var restoredHold = JsonSerializer.Deserialize<AimSettings>(JsonSerializer.Serialize(holdSettings))!;
+        Assert(restoredHold.OverrideHoldKey == "Mouse X1", "Override binding survives configuration round trip");
+        Assert(!JsonSerializer.Deserialize<AimSettings>("{}")!.OverrideHideWhileHeld, "Existing configurations keep the override disabled");
         using (var hidden = new ControlWindow(new StoreData(), true))
         {
             int shown = 0; hidden.Shown += (_, _) => shown++;

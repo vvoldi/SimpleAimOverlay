@@ -33,6 +33,7 @@ internal static class UiText
         ["New"]="Створити", ["Edit"]="Редагувати", ["Delete"]="Видалити", ["Import"]="Імпорт", ["Export"]="Експорт",
         ["Visibility"]="Видимість", ["Show crosshair"]="Показувати приціл", ["Toggle hotkey"]="Перемикання",
         ["Hold to hide"]="Тимчасово сховати", ["Hide while key is held"]="Ховати під час утримання клавіш", ["Hold key"]="Клавіші утримання",
+        ["Override hold-to-hide"]="Пріоритет показу", ["Show while override key is held"]="Показувати під час утримання пріоритетної клавіші", ["Override key"]="Пріоритетна клавіша",
         ["Startup"]="Автозапуск", ["Launch when Windows starts"]="Запускати разом із Windows",
         ["Close button"]="Кнопка закриття", ["Minimize to tray when closed"]="Згортати в трей замість закриття",
         ["Minimize button"]="Кнопка згортання", ["Minimize to tray with the − button"]="Кнопка «−» згортає в трей",

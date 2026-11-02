@@ -18,6 +18,7 @@ Updates are checked **once at launch**, or manually in **Settings → Check for 
 - **Editor:** pencil, shapes, fill and symmetry. **Ctrl + wheel** zooms; **Ctrl + Z / Y** undo and redo. Double-click a saved drawing to edit it.
 - **Share:** import/export drawings as **.aim** (includes color mode) or **PNG**. **Settings → Configuration** transfers settings and drawings together.
 - **Keys:** **F8** toggles visibility; hold **Right Mouse** to hide temporarily. Click either binding in Settings to record up to three keys, including mouse buttons.
+- **Hold-to-hide override (next release):** enable **Show while override key is held** and bind **Override key** to your shoulder-aim button or another key. It keeps the crosshair visible while both bindings are held, regardless of press order. Releasing it restores hold-to-hide. It does not override F8 or the selected-game restriction.
 - **Selected game:** **Show only in the selected game** hides the crosshair outside the active game, including after Alt+Tab. It also starts the app when the game launches, using a background watcher at Windows sign-in. PUBG is the default; choose another game with **Browse**.
 - **Settings:** English / Українська, **Dark / Light theme**, Windows startup, and closing/minimizing to the tray. Your theme changes immediately and is saved. Choose **Exit** in the tray menu to quit.
 

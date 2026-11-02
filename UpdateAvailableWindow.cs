@@ -25,6 +25,7 @@ internal sealed class UpdateAvailableWindow : StyledDialog
         foreach (string line in notes.Lines) {
             notes.Select(position, line.Length);
             if (line.StartsWith("Version ")) { notes.SelectionFont = AppFonts.Semibold(11); notes.SelectionColor = DarkTheme.Accent; }
+            else if (line == FeaturesHeading || line == FixesHeading) { notes.SelectionFont = AppFonts.Semibold(10); notes.SelectionColor = DarkTheme.Text; }
             else if (line.StartsWith("•")) { notes.Select(position, 1); notes.SelectionColor = DarkTheme.Accent; }
             position += line.Length + 1;
         }
@@ -46,24 +47,39 @@ internal sealed class UpdateAvailableWindow : StyledDialog
         Shown += (_, _) => { later.Focus(); notes.Select(0, 0); notes.ScrollToCaret(); };
     }
 
+    internal static string FeaturesHeading => UiText.Language == "uk" ? "Нові можливості" : "Features";
+    internal static string FixesHeading => UiText.Language == "uk" ? "Виправлення" : "Fixes";
+
     internal static string ConciseNotes(string source)
     {
-        var lines = source.Replace("\r", "").Split('\n');
         var result = new List<string>();
-        foreach (string raw in lines) {
-            string line = raw.Trim();
-            if (line.StartsWith("Version ") || line == UiText.T("Some release notes could not be loaded. The list below may be incomplete.")) {
-                result.Add(line); continue;
-            }
-            if (!(line.StartsWith("- ") || line.StartsWith("* ") || line.StartsWith("• "))) continue;
-            line = line[2..].Replace("**", "").Replace("`", "");
-            line = System.Text.RegularExpressions.Regex.Split(line, @"(?<=[.!?])\s+", System.Text.RegularExpressions.RegexOptions.None)[0];
-            result.Add("•  " + line);
+        var features = new List<string>();
+        var fixes = new List<string>();
+        bool? fixSection = null;
+        bool skipSection = false;
+        void Flush() {
+            if(features.Count>0){result.Add(FeaturesHeading);result.AddRange(features);features.Clear();}
+            if(fixes.Count>0){result.Add(FixesHeading);result.AddRange(fixes);fixes.Clear();}
         }
-        return result.Count > 0 ? string.Join(Environment.NewLine + Environment.NewLine, result)
-            : DisplayNotes(source);
+        foreach(string raw in source.Replace("\r", "").Split('\n')) {
+            string line=raw.Trim();
+            if(line.StartsWith("Version ") || line==UiText.T("Some release notes could not be loaded. The list below may be incomplete.")) {
+                Flush();result.Add(line);fixSection=null;skipSection=false;continue;
+            }
+            string heading=line.TrimStart('#').Trim().Trim('*').TrimEnd(':').Trim().ToLowerInvariant();
+            if(heading is "features" or "feature" or "new features" or "improvements" or "нові можливості") {fixSection=false;skipSection=false;continue;}
+            if(heading is "fixes" or "fix" or "bug fixes" or "bugfixes" or "виправлення") {fixSection=true;skipSection=false;continue;}
+            if(heading is "validation" or "testing" or "installation" or "checksums") {skipSection=true;continue;}
+            if(skipSection || !(line.StartsWith("- ") || line.StartsWith("* ") || line.StartsWith("• ")))continue;
+            line=line[2..].Replace("**", "").Replace("`", "");
+            // Older releases have no sections; keep their items and classify explicit fix wording.
+            bool isFix=fixSection ?? System.Text.RegularExpressions.Regex.IsMatch(line,@"^(fix(?:ed|es)?|resolved?|correct(?:ed|s)?|repair(?:ed|s)?|prevent(?:ed|s)?)\b|\b(bug|flicker(?:ing)?|crash(?:es|ing)?|regression)\b",System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            line=System.Text.RegularExpressions.Regex.Split(line,@"(?<=[.!?])\s+")[0];
+            (isFix?fixes:features).Add("•  "+line);
+        }
+        Flush();
+        return result.Count>0 ? string.Join(Environment.NewLine+Environment.NewLine,result) : DisplayNotes(source);
     }
-
     internal static string DisplayNotes(string notes) => string.IsNullOrWhiteSpace(notes)
         ? UiText.T("No release notes were provided.")
         : notes.Replace("\r\n", "\n").Replace("\r", "\n").Replace("\n", Environment.NewLine);

@@ -5,6 +5,15 @@ using System.Text.Json;
 internal static class ReleaseNotesChecks
 {
     internal static void Run() => Task.Run(async () => {
+        string grouped=UpdateAvailableWindow.ConciseNotes("Version 0.2.22\n## Features\n- New editor tool.\n## Fixes\n- Editor opens consistently.\nVersion 0.2.21\n- Added a color picker.\n- Fixed scrolling upward.\n");
+        if(!grouped.Contains(UpdateAvailableWindow.FeaturesHeading) || !grouped.Contains(UpdateAvailableWindow.FixesHeading) ||
+            grouped.IndexOf("Editor opens consistently")>grouped.IndexOf("Version 0.2.21") ||
+            grouped.IndexOf(UpdateAvailableWindow.FixesHeading)>grouped.IndexOf("Editor opens consistently") ||
+            grouped.LastIndexOf(UpdateAvailableWindow.FixesHeading)>grouped.IndexOf("Fixed scrolling upward"))
+            throw new Exception("Feature/fix grouping must respect explicit sections and preserve version boundaries");
+        string fixesOnly=UpdateAvailableWindow.ConciseNotes("- Fixed a crash.");
+        if(fixesOnly.Contains(UpdateAvailableWindow.FeaturesHeading) || !fixesOnly.Contains(UpdateAvailableWindow.FixesHeading))
+            throw new Exception("Fix-only releases must not show an empty Features section");
         static object Entry(string tag, string? body, bool draft = false, bool prerelease = false) => new { tag_name = tag, body, draft, prerelease };
         var first = Enumerable.Repeat(Entry("v0.1.0", "old"), 100).ToArray();
         first[0] = Entry("v0.2.12", "latest duplicate");

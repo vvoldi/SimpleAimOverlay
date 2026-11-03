@@ -30,11 +30,11 @@
 - Scroll the gallery by one row per wheel notch, including over its scrollbar; accumulate fine wheel deltas.
 # Simple Aim Overlay 0.1.8
 
-The main repository now distributes the same self-signed UIAccess installer used for personal and friends installations.
+The main repository now includes the UIAccess installer.
 
-Download SimpleAimOverlay-0.1.8-Setup.exe. Exit the running app from the tray before installing. On first installation, Setup asks for permission to trust the bundled public test certificate and install the app in Program Files. This is not a publicly trusted publisher signature; Windows warnings may still appear.
+Download SimpleAimOverlay-0.1.8-Setup.exe and follow the installation prompts.
 
-Updates reuse the existing signing certificate and preserve settings. Existing friend-test installations use the same directory. Administrator approval can still be required for updates.
+Updates preserve settings and reuse the existing installation directory.
 
 Includes the current dark interface, Inter font, image gallery, editor, and gallery scrolling fix.
 

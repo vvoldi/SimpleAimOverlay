@@ -101,8 +101,8 @@ internal static class UiText
         ["Executable|*.exe"]="Виконувані файли|*.exe", ["Crosshair drawing|*.aim;*.png"]="Малюнки прицілів|*.aim;*.png",
         ["Shareable crosshair|*.aim|PNG image|*.png"]="Файл прицілу|*.aim|Зображення PNG|*.png", ["Aim Overlay configuration|*.aimconfig"]="Конфігурація Aim Overlay|*.aimconfig",
         ["Installation is complete. Launch Simple Aim Overlay now?"]="Встановлення завершено. Запустити Simple Aim Overlay зараз?",
-        ["Remove the app and its test certificate from this PC?"]="Видалити програму та її тестовий сертифікат із цього ПК?",
-        ["The app and its test certificate have been removed. The installation folder will be cleaned after Windows restarts."]="Програму та її тестовий сертифікат видалено. Папку встановлення буде очищено після перезапуску Windows."
+        ["Remove Simple Aim Overlay from this PC?"]="Видалити Simple Aim Overlay із цього ПК?",
+        ["The app has been removed. The installation folder will be cleaned after Windows restarts."]="Програму видалено. Папку встановлення буде очищено після перезапуску Windows."
     };
     internal static string T(string text)
     {
@@ -137,10 +137,10 @@ internal static class UiText
         }
         if(text.Contains(" MB/s (last 4s)"))return text.Replace(" MB/s (last 4s)"," МБ/с (останні 4 с)").Replace(" MB"," МБ").Replace(" · about "," · залишилося приблизно ").Replace(" remaining","");
         if(text.Contains(" is available. Download it now?"))return Regex.Replace(text,@"^Version (.+?) is available\. Download it now\?", "Доступна версія $1. Завантажити?").Replace("You will confirm installation after the download. Your settings will be kept.","Після завантаження ти зможеш підтвердити встановлення. Налаштування буде збережено.");
-        if(text.StartsWith("This is a self-signed Simple Aim Overlay "))return Regex.Replace(text,@"^This is a self-signed Simple Aim Overlay ([^.]+\.[^.]+\.[^ ]+) build\.","Це збірка Simple Aim Overlay $1 із самопідписаним сертифікатом.")
-            .Replace("Setup will add the SimpleAimOverlay test certificate to this PC's trusted certificate stores and install the app in Program Files (required for UIAccess).","Інсталятор додасть тестовий сертифікат SimpleAimOverlay до довірених сховищ цього ПК та встановить програму в Program Files (потрібно для UIAccess).")
-            .Replace("Only continue if you trust the package source. This build does not include a DXGI hook.","Продовжуй лише якщо довіряєш джерелу інсталятора. Ця збірка не містить DXGI hook.")
-            .Replace("Continue? Windows will ask for administrator approval.","Продовжити? Windows запросить підтвердження адміністратора.");
+        if(text.StartsWith("Install Simple Aim Overlay?"))return text
+            .Replace("Install Simple Aim Overlay?","Встановити Simple Aim Overlay?")
+            .Replace("Setup will add the app's local certificate to this PC's trusted stores and install the app in Program Files.","Інсталятор додасть локальний сертифікат програми до довірених сховищ цього ПК і встановить програму в Program Files.")
+            .Replace("Continue only if you trust the source. Windows may ask for administrator approval.","Продовжуй лише якщо довіряєш джерелу. Windows може запросити підтвердження адміністратора.");
         if(text.StartsWith("The operation could not be completed."))return text.Replace("The operation could not be completed.","Не вдалося завершити операцію.");
         if(text.Contains(" + "))return string.Join(" + ",text.Split(" + ").Select(T));
         return text;

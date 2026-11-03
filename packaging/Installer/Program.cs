@@ -38,11 +38,9 @@ internal static class Program
     static void Install(int? parent)
     {
         var result = parent.HasValue ? DialogResult.Yes : DarkMessage.Show(
-            "This is a self-signed Simple Aim Overlay 0.2.22 build.\n\n" +
-            "Setup will add the SimpleAimOverlay test certificate to this PC's trusted certificate stores " +
-            "and install the app in Program Files (required for UIAccess).\n\n" +
-            "Only continue if you trust the package source. This build does not include a DXGI hook.\n\n" +
-            "Continue? Windows will ask for administrator approval.",
+            "Install Simple Aim Overlay?\n\n" +
+            "Setup will add the app's local certificate to this PC's trusted stores and install the app in Program Files.\n\n" +
+            "Continue only if you trust the source. Windows may ask for administrator approval.",
             Product, MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
         if (result != DialogResult.Yes) return;
         bool createDesktop = false;
@@ -97,7 +95,7 @@ internal static class Program
         {
             key.SetValue("DisplayName", Product);
             key.SetValue("DisplayVersion", "0.2.22");
-            key.SetValue("Publisher", "SimpleAimOverlay contributors (local test certificate)");
+            key.SetValue("Publisher", "SimpleAimOverlay contributors");
             key.SetValue("InstallLocation", InstallDir);
             key.SetValue("DisplayIcon", Path.Combine(InstallDir, AppExe));
             key.SetValue("UninstallString", "\"" + uninstallerPath + "\" /uninstall");
@@ -144,7 +142,7 @@ internal static class Program
     }
     static void Uninstall()
     {
-        if (DarkMessage.Show("Remove Simple Aim Overlay Test and its test certificate from this PC's trusted stores?", Product, MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+        if (DarkMessage.Show("Remove Simple Aim Overlay from this PC?", Product, MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
         StopGameWatcher();
         File.Delete(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Startup), "Simple Aim Overlay.lnk"));
         File.Delete(DesktopShortcut.ShortcutPath);
@@ -163,6 +161,6 @@ internal static class Program
             if (!string.Equals(Path.GetFullPath(stale), runningUninstaller, StringComparison.OrdinalIgnoreCase)) try { File.Delete(stale); } catch { }
         try { File.Delete(Path.Combine(InstallDir, "Uninstall.exe")); } catch { }
         if (!string.IsNullOrWhiteSpace(runningUninstaller)) _ = MoveFileEx(runningUninstaller, null, MOVEFILE_DELAY_UNTIL_REBOOT);
-        DarkMessage.Show("The app and its test certificate have been removed. The installation folder will be cleaned after Windows restarts.", Product, MessageBoxButtons.OK, MessageBoxIcon.Information);
+        DarkMessage.Show("The app has been removed. The installation folder will be cleaned after Windows restarts.", Product, MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 }

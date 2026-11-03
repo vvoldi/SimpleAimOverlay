@@ -39,6 +39,14 @@ internal static class MotionChecks
             scroll.SmoothWheel(-480);content.AutoScrollPosition=new System.Drawing.Point(0,100);Settle();
             if(content.AutoScrollPosition.Y!=-100)throw new Exception("External scroll must cancel stale animation instead of snapping back");host.Close();
         }
+        using(var host=new Form {ClientSize=new System.Drawing.Size(900,580)}) {
+            var feedback=new FeedbackPanel(()=>new StoreData());
+            host.Controls.Add(new StyledScrollHost(feedback){Dock=DockStyle.Fill});host.Show();Settle();
+            if(feedback.VerticalScroll.Visible)throw new Exception("Feedback must fit without page scrolling at normal size");
+            host.ClientSize=new System.Drawing.Size(500,260);Settle();
+            if(!feedback.VerticalScroll.Visible)throw new Exception("Feedback must remain scrollable when the form does not fit");
+            host.Close();
+        }
         Console.WriteLine("PASS: dialogs fade to full opacity, slider values settle exactly, transition layers dispose and themed scrolling works.");
         using(var host=new Form {ClientSize=new System.Drawing.Size(400,300)}) {
             var list=new DarkListBox {Dock=DockStyle.Fill,BackColor=DarkTheme.Card,DrawMode=DrawMode.OwnerDrawFixed,ItemHeight=40};

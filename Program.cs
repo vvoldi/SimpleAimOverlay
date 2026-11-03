@@ -464,7 +464,7 @@ internal sealed class ControlWindow : Form
             grid.Controls.Add(heading, 0, headingRow); grid.SetColumnSpan(heading, 2);
         }
         // Nested button margins count towards the row height, including wrapped rows.
-        bool flowing = control is FlowLayoutPanel && label is not ("Center offset" or "Configuration");
+        bool flowing = control is FlowLayoutPanel && label != "Center offset";
         int row = grid.RowCount++; grid.RowStyles.Add(flowing ? new RowStyle(SizeType.AutoSize) : new RowStyle(SizeType.Absolute, 45));
         var l = new Label { Text = label, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = DarkTheme.Muted, BackColor = DarkTheme.Surface };
         // Layout containers share the page background; only inputs need a dark fill.
@@ -473,7 +473,7 @@ internal sealed class ControlWindow : Form
         string helpKey = string.IsNullOrEmpty(label) ? control.Text : label;
         Control labelCell = l;
         if (SettingsHelp.Has(helpKey)) {
-            var labelHost = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty, BackColor = DarkTheme.Surface };
+            var labelHost = new TableLayoutPanel { Dock = DockStyle.Fill, Height = 39, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty, BackColor = DarkTheme.Surface };
             labelHost.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); labelHost.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 30));
             labelHost.Controls.Add(l, 0, 0); labelHost.Controls.Add(new SettingHelpButton(helpKey), 1, 0);
             labelCell = labelHost;

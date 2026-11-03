@@ -6,6 +6,8 @@ namespace SimpleAimOverlay;
 
 internal class RoundedButton : Button
 {
+    [System.ComponentModel.Browsable(false),System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    internal bool PreserveDisabledTextColor { get; set; }
     private bool hovered;
     private float hoverAmount;
     private readonly System.Windows.Forms.Timer hoverTimer=new(){Interval=15};
@@ -28,7 +30,7 @@ internal class RoundedButton : Button
         bool left=TextAlign is ContentAlignment.MiddleLeft or ContentAlignment.TopLeft or ContentAlignment.BottomLeft;
         int x=left?Math.Max(12,Padding.Left):Math.Max(6,(Width-textWidth-(imageWidth>0?imageWidth+6:0))/2);
         if(Image!=null){e.Graphics.DrawImage(Image,x,(Height-Image.Height)/2);x+=imageWidth+6;}
-        TextRenderer.DrawText(e.Graphics,caption,Font,new Rectangle(x,0,Math.Max(0,Width-x-6),Height),Enabled?ForeColor:Color.Gray,TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis);
+        TextRenderer.DrawText(e.Graphics,caption,Font,new Rectangle(x,0,Math.Max(0,Width-x-6),Height),Enabled || PreserveDisabledTextColor ? ForeColor : Color.Gray,TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis);
     }
     protected override void Dispose(bool disposing){if(disposing)hoverTimer.Dispose();base.Dispose(disposing);}
 }

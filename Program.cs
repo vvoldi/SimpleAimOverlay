@@ -105,7 +105,7 @@ internal sealed class ControlWindow : Form
     private const int WM_HOTKEY = 0x0312, HotkeyId = 0x51A1;
     private StoreData data;
     private CrosshairDraft? crosshairDraft;
-    private readonly Button applyChanges = new RoundedButton(), revertChanges = new RoundedButton();
+    private readonly RoundedButton applyChanges = new() { PreserveDisabledTextColor=true }, revertChanges = new() { PreserveDisabledTextColor=true };
     private readonly Label draftStatus = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = DarkTheme.Muted };
     private readonly bool previewMode;
     private readonly OverlayWindow overlay = new();
@@ -261,6 +261,8 @@ internal sealed class ControlWindow : Form
         draftActions.RowStyles.Add(new RowStyle(SizeType.Absolute, 46)); draftActions.RowStyles.Add(new RowStyle(SizeType.Absolute, 46)); draftActions.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         applyChanges.Text = "Apply changes"; applyChanges.BackColor = DarkTheme.Accent; applyChanges.ForeColor = DarkTheme.Window;
         revertChanges.Text = "Revert changes"; revertChanges.BackColor = DarkTheme.SurfaceHover; revertChanges.ForeColor = DarkTheme.Text;
+        applyChanges.Font = AppFonts.Semibold(10); revertChanges.Font = AppFonts.Semibold(10);
+        draftStatus.Font = AppFonts.Regular(9.5f); draftStatus.BackColor = DarkTheme.Window;
         applyChanges.Dock = revertChanges.Dock = DockStyle.Fill; applyChanges.Margin = revertChanges.Margin = new Padding(0, 3, 0, 3);
         applyChanges.Click += (_, _) => { crosshairDraft?.Commit(data.Current); SaveData(); RefreshDraftActions(); };
         revertChanges.Click += (_, _) => RevertCrosshair();
@@ -395,6 +397,7 @@ internal sealed class ControlWindow : Form
         bool dirty = crosshairDraft?.HasChanges(data.Current) == true;
         applyChanges.Enabled = revertChanges.Enabled = dirty;
         draftStatus.Text = dirty ? "Unsaved crosshair changes" : "Crosshair changes saved";
+        draftStatus.ForeColor = DarkTheme.Text;
     }
     private void RevertCrosshair()
     {
@@ -409,6 +412,7 @@ internal sealed class ControlWindow : Form
         using var transition = UiMotion.Transition(Controls.OfType<TableLayoutPanel>().FirstOrDefault() ?? (Control)this);
         SuspendLayout();
         DarkTheme.Select(data.Theme=="light",this);
+        draftStatus.ForeColor = DarkTheme.Text;
         RefreshColorSwatches();
         if(tray.ContextMenuStrip!=null){
             DarkTheme.RefreshMenu(tray.ContextMenuStrip);

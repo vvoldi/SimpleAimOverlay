@@ -8,6 +8,16 @@ internal static class MotionChecks
     internal static void Run()
     {
         static void Settle(){var clock=Stopwatch.StartNew();while(clock.ElapsedMilliseconds<350){Application.DoEvents();Thread.Sleep(5);}}
+        using(var owner=new Form())using(var other=new Form())using(var popup=new HelpPopup()) {
+            var anchor=new SettingHelpButton("Style");owner.Controls.Add(anchor);
+            owner.Show();other.Show();other.Activate();Settle();
+            var activeBefore=Form.ActiveForm;
+            if(owner.ContainsFocus)throw new Exception("Tooltip test requires an inactive owner");
+            popup.ShowFor(anchor,SettingsHelp.Get("Style"));Settle();
+            if(!popup.Visible || Form.ActiveForm!=activeBefore || owner.ContainsFocus || popup.ContainsFocus)
+                throw new Exception($"Help inactive check: visible={popup.Visible}, activeSame={Form.ActiveForm==activeBefore}, ownerFocus={owner.ContainsFocus}, popupFocus={popup.ContainsFocus}");
+            popup.Hide();other.Close();owner.Close();
+        }
         using(var form=new StyledDialog()) {
             if(form.Opacity!=0)throw new Exception("Dialog must start hidden until layout is ready");
             form.Show();Settle();

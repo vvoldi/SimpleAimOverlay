@@ -84,16 +84,22 @@ internal sealed class SettingHelpButton : Button
 
     private sealed class HelpTips
     {
-        private readonly ToolTip tip = new() { AutoPopDelay = 15000, ShowAlways = true };
+        private readonly HelpPopup tip = new();
+        private readonly System.Windows.Forms.Timer lifetime = new() { Interval = 80 };
+        private readonly System.Diagnostics.Stopwatch shown = new();
         private readonly System.Windows.Forms.Timer delay = new() { Interval = 400 };
         private Control? active;
         private SettingHelpButton? candidate;
         private bool disposed;
         internal HelpTips(Form owner) {
             delay.Tick += (_,_) => { delay.Stop(); ShowActive(); };
+            lifetime.Tick += (_,_) => { if(active==null || !UnderPointer(active) || shown.ElapsedMilliseconds>=15000)HideActive(); };
+            owner.VisibleChanged += (_,_) => { if(!owner.Visible)HideActive(); };
+            owner.LocationChanged += (_,_) => HideActive();
+            owner.Resize += (_,_) => HideActive();
             owner.Deactivate += (_,_) => HideActive();
             owner.Activated += (_,_) => { if(candidate is { } button && UnderPointer(button))Attach(button); };
-            owner.Disposed += (_,_) => { disposed = true; delay.Dispose(); tip.Dispose(); active = null; candidate = null; };
+            owner.Disposed += (_,_) => { disposed = true; delay.Dispose(); lifetime.Dispose(); tip.Dispose(); active = null; candidate = null; };
         }
         private static bool UnderPointer(Control control) => !control.IsDisposed && control.Visible && control.Enabled && control.ClientRectangle.Contains(control.PointToClient(Cursor.Position));
         internal void EnsureAttached(SettingHelpButton control) { if(active!=control)Attach(control); }
@@ -107,23 +113,15 @@ internal sealed class SettingHelpButton : Button
         private void ShowActive() {
             if(disposed || active is not { } control)return;
             if(!UnderPointer(control)){HideActive();return;}
-            tip.Show(Wrap(control.AccessibleDescription ?? ""),control,new Point(control.Width+6,control.Height/2),15000);
-        }
-        private static string Wrap(string text) {
-            var result = new System.Text.StringBuilder(); int column = 0;
-            foreach (string word in text.Split(' ')) {
-                if (column + word.Length > 58) { result.AppendLine(); column = 0; }
-                if (column > 0) { result.Append(' '); column++; }
-                result.Append(word); column += word.Length;
-            }
-            return result.ToString();
+            tip.ShowFor(control,control.AccessibleDescription ?? "");
+            shown.Restart();lifetime.Start();
         }
         internal void Hide(Control control) { if (active == control) HideActive(); if(candidate==control)candidate=null; }
         internal void Detach(Control control) { Hide(control); }
         private void HideActive() {
             if (disposed) return;
             delay.Stop();
-            if(active!=null)tip.Hide(active);
+            lifetime.Stop();tip.Hide();
             active = null;
         }
     }
